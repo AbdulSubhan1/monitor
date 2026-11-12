@@ -4,22 +4,24 @@ import { DayBars } from "@/components/charts";
 import { Stat, StatusPill } from "@/components/status";
 import { VitalsLine } from "@/components/vitals";
 import { formatCount, formatPercent, timeAgo } from "@/lib/format";
-import { PROJECTS } from "@/lib/projects";
+import { findProject, PROJECTS } from "@/lib/projects";
 import { getDeploy } from "@/server/deploys";
-import { getApiSummaries, getDailyViews, getSummaries, getVitals, lastSevenDays } from "@/server/queries";
+import { getApiSummaries, getDailyViews, getSecurity, getSummaries, getVitals, lastSevenDays } from "@/server/queries";
 
 export default async function OverviewPage() {
   await connection();
-  const [summaries, daily, vitals, api, deploys] = await Promise.all([
+  const [summaries, daily, vitals, api, security, deploys] = await Promise.all([
     getSummaries(),
     getDailyViews(),
     getVitals(),
     getApiSummaries(),
+    getSecurity(),
     Promise.all(PROJECTS.map(getDeploy)),
   ]);
   const days = lastSevenDays();
   const checked = PROJECTS.filter((p) => summaries.get(p.id)?.lastCheck);
   const down = checked.filter((p) => !summaries.get(p.id)!.lastCheck!.ok);
+  const criticalAlerts = security.alerts.some((a) => a.severity === "critical");
 
   return (
     <>
@@ -36,6 +38,20 @@ export default async function OverviewPage() {
           each site; API calls and errors from each app&apos;s server.
         </p>
       </div>
+
+      {security.alerts.length > 0 && (
+        // Public page: counts and project names only; the details are behind the logs password
+        <Link
+          href="/logs/security"
+          className={`mb-6 block rounded-xl border p-4 text-sm ${criticalAlerts ? "border-down bg-down-soft text-down" : "border-warn bg-warn-soft text-warn"}`}
+        >
+          <span className="font-semibold">
+            {security.alerts.length} security {security.alerts.length === 1 ? "alert" : "alerts"} in the last 24 hours
+          </span>{" "}
+          on {[...new Set(security.alerts.map((a) => (a.project === "pulse" ? "Pulse" : (findProject(a.project)?.name ?? a.project))))].join(", ")}.
+          See details →
+        </Link>
+      )}
 
       <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {PROJECTS.map((project, i) => {

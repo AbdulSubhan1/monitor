@@ -85,3 +85,22 @@ export const apiCalls = pgTable(
   },
   (t) => [index("api_calls_project_time").on(t.project, t.createdAt)],
 );
+
+// Security events: failed and successful logins, blocks and bad tokens. The account and the source (IP) are stored only
+// as keyed hashes, enough to group attempts, never the raw values; `accountHint` is a masked form for people ("ab***@x.dev").
+export const securityEvents = pgTable(
+  "security_events",
+  {
+    id: bigserial({ mode: "number" }).primaryKey(),
+    // A project id, or "pulse" for attempts on Pulse itself
+    project: text().notNull(),
+    type: text({ enum: ["login_failed", "login_succeeded", "login_blocked", "auth_failed"] }).notNull(),
+    source: text(),
+    account: text(),
+    accountHint: text(),
+    path: text(),
+    reason: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("security_project_time").on(t.project, t.createdAt), index("security_time").on(t.createdAt)],
+);

@@ -26,6 +26,10 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
   with ids as `:id`, with failed / 4xx counts, avg and p95.
 - **Logs and errors:** app servers post errors and key logs to `/api/logs` with a per-project token. Next.js apps send
   every server error from `onRequestError`. A logs page filters by project and level (password protected).
+- **Security (brute force):** apps report failed and successful logins; Pulse flags one source failing many times,
+  one account guessed at, password spraying, and a sign-in right after many failures. Pulse also watches attacks on
+  its own password and tokens. Emails and IPs are stored only as keyed hashes.
+- **Free-database safe:** in-memory rate limits, daily row caps and 30-day retention keep a flood from filling Neon.
 - **Dashboard:** status, uptime, views for 24 h and 7 days, events, errors and the last deploy (Vercel and GitHub APIs).
 
 ## Add it to a site

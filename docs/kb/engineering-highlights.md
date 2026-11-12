@@ -81,6 +81,39 @@ it lives and is tested.
 - **Public totals, private detail:** the route table is on the public project page; the call-by-call log with error
   text is under `/logs/api`, behind the same password as logs.
 
+## Security monitoring (brute force)
+
+- **What is watched:** failed and successful logins and blocks reported by apps (`POST /api/security`, same project
+  token), plus attacks on Pulse itself: wrong `/logs` passwords, bad ingest tokens, bad cron secrets (project "pulse").
+- **Rules, in sliding 15-minute windows** (so a burst split across a clock boundary still counts): 10 failures from
+  one source; 5 failures on one account (from any sources); one source failing on 5 different accounts (password
+  spraying); and a **critical** alert when an account signs in right after 5 failures (a guessed password). Blocks an
+  app made itself are shown too. Rules are a pure function over recent events, unit tested.
+- **No raw emails or IPs stored.** Accounts and sources are HMAC-SHA256 keyed hashes (the server secret is the key),
+  so attempts group together but the values can't be read back or matched against a list. People see a masked hint
+  (`ad***@policydesk.dev`). Reasons are a closed snake_case vocabulary, never free text, so a password can't slip in.
+- **Pulse defends its own login.** After 10 failures from a source in 15 minutes, `/logs` and the token endpoints refuse
+  that source without checking the password at all (even a correct one), until the window passes.
+- **Public banner, private detail:** the overview shows only "N security alerts on PolicyDesk"; who and when is under
+  `/logs/security`, behind the password.
+
+## Protecting the free database
+
+The Neon database is on the free plan, so no attack or bug may fill it or burn its compute:
+
+| Layer | What | Cost to the database |
+| --- | --- | --- |
+| **Apps report less during an attack** | PolicyDesk reports the first 10 failures per source per 15 minutes, then one `login_blocked`, then nothing until the window ends: 100,000 guesses become about 11 rows. | ~11 rows per attacker per 15 min |
+| **Rate limit on the public beacon** | 120 requests a minute per address, counted in memory before parsing. | none |
+| **Blocked sources refused early** | Pulse's password and token checks refuse a blocked source in memory; the block is stored once per window. | 1 row per window |
+| **Daily caps** | Per project per day: 5,000 events, 1,000 logs, 2,000 vitals, 5,000 API calls, 1,000 security events; 30,000 rows a day in total. Over a cap the request still gets 204 but nothing is written. Counts are cached for a minute, so checking a cap is not a query per request. | 0 writes over the cap |
+| **Retention** | Everything older than 30 days is deleted on each uptime run. | bounded |
+| **Own database** | Pulse's Neon database is separate from PolicyDesk's, so Pulse can never fill PolicyDesk's storage. | – |
+
+Worst case (every cap hit every day) is about 4–5 MB a day, well under Neon's 0.5 GB with 30-day retention. Limits
+kept in memory are per server instance; Vercel reuses warm instances, so they cut floods sharply but are not exact,
+which the daily caps make up for.
+
 ## Uptime details
 
 - `redirect: "manual"`: a 3xx is a healthy answer (PolicyDesk sends visitors to its login page). Up means status < 400.

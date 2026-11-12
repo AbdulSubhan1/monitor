@@ -1,18 +1,19 @@
 import { db, schema } from "@/server/db";
 import { parseLogs } from "@/lib/ingest";
-import { verifyLogToken } from "@/lib/tokens";
+import { withinDailyCap } from "@/server/guard";
+import { projectFromToken } from "@/server/ingest-auth";
 
 // Server-to-server: an app's server sends errors and key logs with its own token
 export async function POST(request: Request) {
-  const secret = process.env.LOG_SIGNING_SECRET;
-  if (!secret) return Response.json({ error: "logs are not configured" }, { status: 503 });
-
-  const project = verifyLogToken(request.headers.get("authorization"), secret);
-  if (!project) return Response.json({ error: "invalid token" }, { status: 401 });
+  const auth = await projectFromToken(request);
+  if ("response" in auth) return auth.response;
+  const { project } = auth;
 
   const parsed = parseLogs(await request.text());
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 
+  // Over today's cap the logs are dropped, not stored: the free database stays safe even if an app loops on errors
+  if (!(await withinDailyCap("logs", project, parsed.value.length))) return new Response(null, { status: 204 });
   await db.insert(schema.logs).values(
     parsed.value.map((log) => ({
       project,

@@ -20,7 +20,10 @@ One small Next.js app that does the three jobs on free tiers:
    (`plan_selected` · `Bluepeak Plus`), browser errors and Core Web Vitals of real visitors.
 3. **An error, log and API-call endpoint:** each app's server sends errors and every API call it makes (route, status,
    time) with its own token; Next.js apps send every server error automatically from `onRequestError`.
-4. **One dashboard:** status, uptime, traffic for 24 h and 7 days, errors and last deploy per project, plus a logs
+4. **Brute-force detection:** apps report logins; sliding 15-minute rules flag one source failing many times, password
+   guessing on one account, password spraying, and a sign-in right after failures (critical). Pulse watches its own
+   password and tokens the same way and blocks a guessing source.
+5. **One dashboard:** status, uptime, traffic for 24 h and 7 days, errors and last deploy per project, plus a logs
    page with filters.
 
 ## Decisions I'd defend in a review
@@ -38,6 +41,11 @@ One small Next.js app that does the three jobs on free tiers:
   session windows as Google defines them, reported as p75 like Search Console.
 - **API logs that group and don't leak.** Ids in API paths become `:id` on the server, so calls group by route and no
   customer id is stored; failures (no answer or 5xx) are counted apart from 4xx.
+- **Security data without personal data.** Emails and IPs become keyed HMAC hashes on arrival: attempts still group,
+  but nothing readable is stored. Reasons are a fixed vocabulary, so a typed password can never land in the log.
+- **A free database that an attacker can't fill.** Apps report the first 10 failures per source and then one "blocked"
+  event; the public beacon is rate limited in memory; every table has a daily cap checked against cached counts.
+  100,000 guesses cost about 11 rows.
 - **Honest charts.** If the scheduler misses a slot, the uptime strip shows grey, not green.
 - **Fit the free tier.** Vercel Hobby crons run once a day and GitHub's schedules are best effort, so the 10-minute
   trigger is a free QStash schedule (144 of 500 daily messages); every run also deletes data older than 30 days so

@@ -1,5 +1,6 @@
 import "server-only";
 import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { detectBruteForce } from "@/lib/security";
 import { db, schema } from "@/server/db";
 
 const { checks, events, logs } = schema;
@@ -229,4 +230,17 @@ export async function getRecentApiCalls(filter: { project?: string; failedOnly?:
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(apiCalls.createdAt))
     .limit(limit);
+}
+
+const { securityEvents } = schema;
+
+// The last 24 hours of security events (capped, so a flood can't make the page slow) and the brute-force alerts in them
+export async function getSecurity(project?: string) {
+  const rows = await db
+    .select()
+    .from(securityEvents)
+    .where(and(gte(securityEvents.createdAt, since(24)), project ? eq(securityEvents.project, project) : undefined))
+    .orderBy(desc(securityEvents.createdAt))
+    .limit(5_000);
+  return { rows, alerts: detectBruteForce(rows) };
 }
