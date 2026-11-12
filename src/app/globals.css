@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Pulse look: an instrument panel. Quiet paper and ink, numbers in mono, colour only for status. */
+:root {
+  --paper: #f5f5f1;
+  --card: #ffffff;
+  --ink: #15191d;
+  --muted: #5f676f;
+  --line: #e1e1da;
+  --up: #1f8a5b;
+  --up-soft: #e2f3ea;
+  --down: #c2382b;
+  --down-soft: #fbe7e4;
+  --warn: #b7791f;
+  --warn-soft: #fbf0dc;
+  --bar: #2f5d8a;
+  --bar-soft: #dfe8f1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1214;
+    --card: #171b1f;
+    --ink: #e8eaec;
+    --muted: #98a1a9;
+    --line: #2a3036;
+    --up: #3fbf86;
+    --up-soft: #16312a;
+    --down: #ef6a5c;
+    --down-soft: #3a1f1c;
+    --warn: #e0a64a;
+    --warn-soft: #36291a;
+    --bar: #6c9fd3;
+    --bar-soft: #1f2a36;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bar: var(--bar);
+  --color-bar-soft: var(--bar-soft);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
