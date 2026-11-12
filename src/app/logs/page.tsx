@@ -1,23 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
+import { Chip, LogTabs } from "@/components/chip";
 import { LevelTag } from "@/components/status";
 import { formatTime, timeAgo } from "@/lib/format";
 import { findProject, PROJECTS } from "@/lib/projects";
 import { getLogs, LEVELS, type Level } from "@/server/queries";
 
 export const metadata: Metadata = { title: "Logs" };
-
-function Chip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full border px-3 py-1 text-xs ${active ? "border-ink bg-ink text-paper" : "border-line text-muted hover:border-muted hover:text-ink"}`}
-    >
-      {children}
-    </Link>
-  );
-}
 
 export default async function LogsPage({ searchParams }: PageProps<"/logs">) {
   await connection();
@@ -39,8 +28,9 @@ export default async function LogsPage({ searchParams }: PageProps<"/logs">) {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold md:text-3xl">Logs</h1>
-      <p className="mt-1 mb-5 text-sm text-muted">
+      <h1 className="mb-4 text-2xl font-semibold md:text-3xl">Logs</h1>
+      <LogTabs current="logs" />
+      <p className="mb-5 text-sm text-muted">
         Server errors and logs sent with each app&apos;s token, and browser errors from the beacon. Newest first, last 100.
       </p>
 
