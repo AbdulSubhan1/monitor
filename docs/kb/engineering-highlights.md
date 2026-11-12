@@ -88,7 +88,8 @@ it lives and is tested.
 - **Rules, in sliding 15-minute windows** (so a burst split across a clock boundary still counts): 10 failures from
   one source; 5 failures on one account (from any sources); one source failing on 5 different accounts (password
   spraying); and a **critical** alert when an account signs in right after 5 failures (a guessed password). Blocks an
-  app made itself are shown too. Rules are a pure function over recent events, unit tested.
+  app made itself are shown too. `action_blocked` events (a live-demo limit or a locked screen in an app) are listed too, and
+  5 from one source within 15 minutes raise a "pushing on demo limits" alert. Rules are a pure function over recent events, unit tested.
 - **No raw emails or IPs stored.** Accounts and sources are HMAC-SHA256 keyed hashes (the server secret is the key),
   so attempts group together but the values can't be read back or matched against a list. People see a masked hint
   (`ad***@policydesk.dev`). Reasons are a closed snake_case vocabulary, never free text, so a password can't slip in.

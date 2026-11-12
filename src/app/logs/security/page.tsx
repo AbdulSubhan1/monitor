@@ -12,6 +12,7 @@ const TYPE_TONE: Record<string, string> = {
   login_failed: "bg-warn-soft text-warn",
   auth_failed: "bg-warn-soft text-warn",
   login_blocked: "bg-down-soft text-down",
+  action_blocked: "bg-down-soft text-down",
   login_succeeded: "bg-up-soft text-up",
 };
 
