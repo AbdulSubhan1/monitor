@@ -12,13 +12,14 @@ export function Chip({ href, active, children }: { href: string; active: boolean
   );
 }
 
-export function LogTabs({ current }: { current: "logs" | "api" }) {
+export function LogTabs({ current }: { current: "logs" | "api" | "security" }) {
   return (
     <div className="mb-5 flex gap-4 border-b border-line text-sm">
       {(
         [
           ["logs", "/logs", "Errors and logs"],
           ["api", "/logs/api", "API calls"],
+          ["security", "/logs/security", "Security"],
         ] as const
       ).map(([key, href, text]) => (
         <Link
