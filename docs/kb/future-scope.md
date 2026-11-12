@@ -8,5 +8,4 @@ Left out on purpose to keep Pulse small. Each item has the trigger that would ma
 | **Rate limit on `/api/collect`** | Origin checks stop browsers on other sites; a script can still fake the header. Inflated counts on a demo cost nothing. | Someone spams it. A per-IP hourly counter in Postgres (as in Brokwise) is ready to copy. |
 | **Unique visitors** | Needs an id or a daily salted IP hash, which is tracking. | A project needs it for a real decision. |
 | **Log search** | Filters by project and level are enough for a few logs a day. | Logs grow past a few hundred a day. Postgres full-text search on `message` first. |
-| **Faster scheduler** | GitHub Actions may start late by minutes. | A project needs minute-level uptime. Upstash QStash schedules (free plan) can call the same route. |
 | **Public status page per project** | The overview already is one. | A client wants a link without the other projects. |

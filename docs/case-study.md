@@ -13,8 +13,9 @@ service like Axiom. For five small sites that is three scripts, three accounts a
 
 One small Next.js app that does the three jobs on free tiers:
 
-1. **Uptime:** a GitHub Actions schedule calls a protected route every 10 minutes; each site is checked in parallel
-   and the result is stored.
+1. **Uptime:** an Upstash QStash schedule calls a protected route every 10 minutes; each site is checked in parallel
+   and the result is stored. (A GitHub Actions schedule came first; it never fired in its first 45 minutes, so it now
+   only runs on demand.)
 2. **A cookie-free beacon:** one script tag per site sends page views, every CTA click as a named, labelled event
    (`plan_selected` · `Bluepeak Plus`), browser errors and Core Web Vitals of real visitors.
 3. **An error, log and API-call endpoint:** each app's server sends errors and every API call it makes (route, status,
@@ -38,8 +39,9 @@ One small Next.js app that does the three jobs on free tiers:
 - **API logs that group and don't leak.** Ids in API paths become `:id` on the server, so calls group by route and no
   customer id is stored; failures (no answer or 5xx) are counted apart from 4xx.
 - **Honest charts.** If the scheduler misses a slot, the uptime strip shows grey, not green.
-- **Fit the free tier.** Vercel Hobby crons run once a day, so the schedule lives in GitHub Actions; every run also
-  deletes data older than 30 days so Neon's free storage never fills.
+- **Fit the free tier.** Vercel Hobby crons run once a day and GitHub's schedules are best effort, so the 10-minute
+  trigger is a free QStash schedule (144 of 500 daily messages); every run also deletes data older than 30 days so
+  Neon's free storage never fills.
 - **Small on purpose.** Projects are a typed list in code, not a table with an admin screen. No chart library: the
   charts are SVG rects. Alerts, rate limits and log search are written down with the trigger that would justify them.
 

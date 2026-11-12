@@ -58,7 +58,7 @@ Same as my other apps, no new libraries: Next.js 16 (App Router), TypeScript, Ta
 
 1. Scaffold the repo (`~/monitor`, `main` + feature branch), DB schema, PGlite/Neon switch, setup script.
 2. Ingest: `/api/collect`, `/api/logs`, `/beacon.js`, tokens, validation + unit tests.
-3. Uptime: `/api/cron/check`, GitHub Actions schedule, retention.
+3. Uptime: `/api/cron/check`, GitHub Actions schedule, retention. (Later moved to a QStash schedule: see the KB.)
 4. Dashboard: overview cards, project page (uptime bars, pageviews per day, top pages and events), logs page with
    filters, Basic auth on logs.
 5. Deploy: GitHub repo `AbdulSubhan1/monitor`, Vercel project under my personal team, Neon via the integration,
