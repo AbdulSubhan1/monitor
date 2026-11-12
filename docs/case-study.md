@@ -1,6 +1,6 @@
 # Case study: Pulse, a monitor I built for my own projects
 
-**Live:** https://pulse-monitor.vercel.app · **Code:** https://github.com/AbdulSubhan1/monitor
+**Live:** https://abdulsubhan-pulse.vercel.app · **Code:** https://github.com/AbdulSubhan1/monitor
 
 ## The problem
 

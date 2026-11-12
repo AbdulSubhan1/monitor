@@ -30,7 +30,7 @@ async function fromVercel(projectId: string): Promise<Deploy | null> {
 }
 
 async function fromGitHubPages(repo: string): Promise<Deploy | null> {
-  const headers = { Accept: "application/vnd.github+json", "User-Agent": "PulseMonitor" };
+  const headers = { Accept: "application/vnd.github+json", "User-Agent": "AbdulSubhan-Pulse" };
   const res = await fetch(`https://api.github.com/repos/${repo}/deployments?environment=github-pages&per_page=1`, {
     headers,
     ...CACHE,

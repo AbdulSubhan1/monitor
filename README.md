@@ -3,7 +3,7 @@
 A small monitor for my own live projects, in one Next.js app: uptime checks, a cookie-free page-view beacon, an
 error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + Axiom, for five sites.
 
-**Live:** https://pulse-monitor.vercel.app
+**Live:** https://abdulsubhan-pulse.vercel.app
 
 | Watches | URL |
 | --- | --- |
@@ -26,7 +26,7 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
 ## Add it to a site
 
 ```html
-<script defer src="https://pulse-monitor.vercel.app/beacon.js" data-project="brokwise"></script>
+<script defer src="https://abdulsubhan-pulse.vercel.app/beacon.js" data-project="brokwise"></script>
 ```
 
 ```ts
@@ -43,7 +43,7 @@ Server errors in a Next.js app (`instrumentation.ts`):
 
 ```ts
 export async function onRequestError(error: unknown, request: { path: string; method: string }) {
-  await fetch("https://pulse-monitor.vercel.app/api/logs", {
+  await fetch("https://abdulsubhan-pulse.vercel.app/api/logs", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.MONITOR_LOG_TOKEN}` },
     body: JSON.stringify({ level: "error", message: String(error), path: request.path }),

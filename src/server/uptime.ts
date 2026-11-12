@@ -16,7 +16,7 @@ async function checkOne(project: Project): Promise<CheckResult> {
       method: "GET",
       redirect: "manual",
       cache: "no-store",
-      headers: { "User-Agent": "PulseMonitor/1.0 (+uptime check)" },
+      headers: { "User-Agent": "AbdulSubhan-Pulse/1.0 (+uptime check of my own sites)" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const ms = Math.round(performance.now() - started);
