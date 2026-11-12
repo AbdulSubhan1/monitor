@@ -13,7 +13,7 @@
  my sites ──beacon.js──► POST /api/collect ──► events (views, clicks) / vitals / logs (browser errors)
  my apps' servers ──Bearer token──► POST /api/logs ──► logs
  my apps' servers ──Bearer token──► POST /api/calls ──► api_calls
- GitHub Actions (every 10 min) ──Bearer CRON_SECRET──► POST /api/cron/check ──► checks (+ 30-day cleanup)
+ Upstash QStash (every 10 min) ──Bearer CRON_SECRET──► POST /api/cron/check ──► checks (+ 30-day cleanup)
  Vercel API + GitHub API ──(cached 10 min)──► last deploy
                      all of it ──► / (overview), /projects/[id], /logs and /logs/api (password)
 ```

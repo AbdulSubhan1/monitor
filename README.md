@@ -15,7 +15,7 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
 
 ## What it does
 
-- **Uptime:** every 10 minutes (GitHub Actions schedule), each site is checked; status, code and response time are
+- **Uptime:** every 10 minutes (an Upstash QStash schedule), each site is checked; status, code and response time are
   stored. The dashboard shows a 24-hour strip, uptime % and average response time.
 - **Page views and interactions:** each site adds one script tag. It sends page views (including client-side
   navigation), every CTA click as a named event with a label (`project_opened` · `policydesk`) and browser errors.

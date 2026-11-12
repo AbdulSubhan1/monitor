@@ -1,7 +1,7 @@
 import { bearerMatches } from "@/lib/tokens";
 import { runChecks } from "@/server/uptime";
 
-// Called every 10 minutes by the GitHub Actions schedule (.github/workflows/uptime.yml) with CRON_SECRET
+// Called every 10 minutes by the QStash schedule (src/server/qstash.ts), or by hand from the GitHub workflow, with CRON_SECRET
 export async function POST(request: Request) {
   if (!bearerMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });

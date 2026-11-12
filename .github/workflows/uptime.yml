@@ -1,10 +1,8 @@
-# Vercel Hobby crons run at most once a day, so GitHub Actions (free on a public repo) runs the uptime check.
-# GitHub may start a scheduled run a few minutes late; the dashboard shows a missed slot as grey, not as "up".
+# Manual uptime run. The 10-minute schedule moved to Upstash QStash (src/server/qstash.ts): GitHub's free schedules are
+# best effort, and on this repo the first scheduled run never came in the first 45 minutes.
 name: Uptime check
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions: {}
