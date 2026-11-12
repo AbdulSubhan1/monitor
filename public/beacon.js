@@ -2,12 +2,15 @@
  * Pulse beacon: page views, named events and browser errors for one of my sites.
  *   <script defer src="https://<pulse>/beacon.js" data-project="brokwise"></script>
  *   window.pulse.track("lead_submitted")
+ *   <a href="/cv.pdf" data-pulse-event="cv_downloaded">   (counted on click, no code needed)
+ * Events tracked before this script loads wait in window.pulse.q and are sent once it runs.
  * No cookies, no storage, no ids. Paths are sent without query string or hash.
  */
 (function () {
   var script = document.currentScript;
   var project = script && script.getAttribute("data-project");
-  if (!project || window.pulse) return;
+  if (!project || (window.pulse && window.pulse.ready)) return;
+  var queued = (window.pulse && window.pulse.q) || [];
   var endpoint = new URL("/api/collect", script.src).href;
   // Local dev, automated browsers (my own E2E runs) and pre-renders stay out of the numbers
   var off = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || navigator.webdriver;
@@ -63,10 +66,19 @@
     error(r && r.message ? r.message : "Unhandled promise rejection: " + String(r), r && r.stack);
   });
 
-  window.pulse = {
-    track: function (name) {
-      send({ type: "event", name: name, path: location.pathname });
+  function track(name) {
+    send({ type: "event", name: name, path: location.pathname });
+  }
+  addEventListener(
+    "click",
+    function (e) {
+      var el = e.target && e.target.closest && e.target.closest("[data-pulse-event]");
+      if (el) track(el.getAttribute("data-pulse-event"));
     },
-  };
+    true,
+  );
+
+  window.pulse = { ready: true, track: track };
   pageview();
+  queued.forEach(track);
 })();

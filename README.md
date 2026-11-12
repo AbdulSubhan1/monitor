@@ -33,6 +33,12 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
 window.pulse?.track("lead_submitted"); // snake_case names
 ```
 
+```html
+<a href="/cv.pdf" data-pulse-event="cv_downloaded">Download CV</a> <!-- counted on click, no code -->
+```
+
+Events tracked before the script loads can be queued: `(window.pulse ??= { q: [] }).q?.push("payment_succeeded")`.
+
 Server errors in a Next.js app (`instrumentation.ts`):
 
 ```ts

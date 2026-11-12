@@ -45,6 +45,10 @@ it lives and is tested.
 - Server errors are sent from Next.js `onRequestError` with a 2-second timeout and every failure ignored.
 - At most 5 browser errors per page load, so one broken loop can't flood the log. "Script error." (another origin's
   script, no detail) is dropped.
+- **Click events without code (the "GTM trigger" part):** any element with `data-pulse-event="name"` is counted on
+  click through one delegated listener, so a static site can track its CV download with an attribute.
+- **No lost early events:** an app can push event names to `window.pulse.q` before the script loads; the beacon sends
+  them when it starts.
 - Client-side navigations count: the beacon hooks `history.pushState` and `popstate`, and skips repeats of the same path.
 
 ## Uptime details
