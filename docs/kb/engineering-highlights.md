@@ -10,7 +10,7 @@ it lives and is tested.
 | --- | --- | --- |
 | **Build it, don't rent it.** A self-built ingest on Neon Postgres instead of GTM, a pixel vendor or Axiom. | Five small sites don't need a vendor, and free plans add scripts, cookies and limits I can't control. Building the ingest shows the parts a vendor hides: input validation, auth for writes, privacy, retention. | whole repo |
 | **Projects are code, not data.** | Five projects never need an admin screen, a projects table or a form. Adding one is a reviewed PR to one typed list. | `src/lib/projects.ts` |
-| **Three tables, no deploys table.** | `checks`, `events`, `logs` are the only things that must be stored. The last deploy is read live from the Vercel and GitHub APIs and cached 10 minutes, so it can never be stale or out of sync. | `src/server/db/schema.ts`, `src/server/deploys.ts` |
+| **Five tables, no deploys table.** | `checks`, `events`, `logs`, `vitals`, `api_calls` are the only things that must be stored. The last deploy is read live from the Vercel and GitHub APIs and cached 10 minutes, so it can never be stale or out of sync. | `src/server/db/schema.ts`, `src/server/deploys.ts` |
 | **GitHub Actions as the scheduler.** | Vercel Hobby crons run once a day; uptime needs every 10 minutes. A scheduled workflow is free on a public repo and its runs are visible in the Actions tab. GitHub can start a run late, so a missed slot shows grey on the dashboard instead of being hidden. | `.github/workflows/uptime.yml`, `src/lib/slots.ts` |
 | **Same stack as my other apps.** | Next.js 16, Drizzle, Neon, PGlite locally, Zod, Vitest: no new libraries. Charts are a few SVG rects. | `package.json`, `src/components/charts.tsx` |
 | **Grouped queries.** | The overview runs four grouped queries for all projects (latest check with `DISTINCT ON`, `count(*) filter (...)` for 24 h and 7 d) instead of one set per project. Indexes on `(project, time)` match every query. | `src/server/queries.ts` |
@@ -50,6 +50,36 @@ it lives and is tested.
 - **No lost early events:** an app can push event names to `window.pulse.q` before the script loads; the beacon sends
   them when it starts.
 - Client-side navigations count: the beacon hooks `history.pushState` and `popstate`, and skips repeats of the same path.
+
+## Interactions (every CTA)
+
+- **Name + label.** An event name says what happened (`project_opened`, `plan_selected`), the label says which one or
+  where (`policydesk`, `hero`). Names are a closed snake_case vocabulary; labels are free text up to 80 characters.
+  The dashboard groups by both, so "which project do people open?" is one table, without inventing a name per project.
+- **No code in the sites.** `data-pulse-event` + `data-pulse-label` on a link or button is enough; one delegated
+  capture-phase click listener counts it, even if the click navigates away (sendBeacon survives unload).
+
+## Performance (Core Web Vitals from real visitors)
+
+- **Measured in the beacon with `PerformanceObserver`, no library:** LCP, INP, CLS, FCP and TTFB for each page load,
+  sent once when the page is hidden (`visibilitychange` / `pagehide`), the moment Google's own library reports too.
+- **CLS uses Google's session windows** (gaps under 1 s, windows up to 5 s, worst window wins), not a plain sum.
+- **INP is simplified** to the slowest interaction; the real metric skips 1 in 50 interactions on very busy pages, which
+  doesn't matter at this traffic. Written down so nobody mistakes it for the exact metric.
+- **p75, like Google reports it,** with Postgres `percentile_cont(0.75)`, coloured by Google's good / needs work /
+  poor thresholds; per project and per page. Client-side page changes share the hard load's numbers (known limit).
+- **Impossible numbers are refused** (negative, over a minute, fractional ms), so one broken browser can't skew p75.
+
+## API calls (the API log)
+
+- **Reported by the calling app** to `POST /api/calls` with the same per-project token as logs: method, host, path,
+  status, time, error. Batches of 1–50.
+- **Routes, not URLs:** ids are replaced with `:id` on the server (UUIDs, numbers, long random tokens), so calls group
+  by route and the log never stores a customer's id. Query strings are dropped.
+- **Failed vs 4xx:** no response or 5xx counts as failed (the API's problem); 4xx is shown on its own (the caller's
+  mistake). Avg and p95 time per route.
+- **Public totals, private detail:** the route table is on the public project page; the call-by-call log with error
+  text is under `/logs/api`, behind the same password as logs.
 
 ## Uptime details
 

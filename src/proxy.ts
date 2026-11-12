@@ -19,4 +19,4 @@ export function proxy(request: NextRequest) {
   return new NextResponse("Password needed.", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="Pulse logs"' } });
 }
 
-export const config = { matcher: ["/logs"] };
+export const config = { matcher: ["/logs", "/logs/:path*"] };

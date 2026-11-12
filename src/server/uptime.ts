@@ -38,6 +38,8 @@ export async function runChecks() {
     db.delete(schema.checks).where(lt(schema.checks.checkedAt, cutoff)),
     db.delete(schema.events).where(lt(schema.events.createdAt, cutoff)),
     db.delete(schema.logs).where(lt(schema.logs.createdAt, cutoff)),
+    db.delete(schema.vitals).where(lt(schema.vitals.createdAt, cutoff)),
+    db.delete(schema.apiCalls).where(lt(schema.apiCalls.createdAt, cutoff)),
   ]);
   return results;
 }

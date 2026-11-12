@@ -1,4 +1,4 @@
-import { bigserial, boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { bigserial, boolean, index, integer, jsonb, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
 
 // One row per uptime check: every 10 minutes per project
 export const checks = pgTable(
@@ -25,6 +25,8 @@ export const events = pgTable(
     type: text({ enum: ["pageview", "event"] }).notNull(),
     // "pageview" for page views, the event name otherwise
     name: text().notNull(),
+    // What exactly was clicked, e.g. the project for "project_opened" or where the button sits ("hero")
+    label: text(),
     path: text().notNull(),
     referrer: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -46,4 +48,40 @@ export const logs = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("logs_project_time").on(t.project, t.createdAt), index("logs_time").on(t.createdAt)],
+);
+
+// Core Web Vitals from real visitors: one row per page load, sent when the page is hidden. Times in ms; CLS has no unit.
+export const vitals = pgTable(
+  "vitals",
+  {
+    id: bigserial({ mode: "number" }).primaryKey(),
+    project: text().notNull(),
+    path: text().notNull(),
+    lcp: integer(),
+    inp: integer(),
+    cls: real(),
+    fcp: integer(),
+    ttfb: integer(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("vitals_project_time").on(t.project, t.createdAt)],
+);
+
+// API calls an app's server makes (or serves): route with ids replaced by ":id", status and time
+export const apiCalls = pgTable(
+  "api_calls",
+  {
+    id: bigserial({ mode: "number" }).primaryKey(),
+    project: text().notNull(),
+    method: text().notNull(),
+    // The API's host for outgoing calls ("policydesk-opal.vercel.app"); null for the app's own routes
+    host: text(),
+    route: text().notNull(),
+    // null when no response came back (timeout, network)
+    status: integer(),
+    ms: integer().notNull(),
+    error: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("api_calls_project_time").on(t.project, t.createdAt)],
 );

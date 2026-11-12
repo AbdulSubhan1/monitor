@@ -2,16 +2,19 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { DayBars } from "@/components/charts";
 import { Stat, StatusPill } from "@/components/status";
+import { VitalsLine } from "@/components/vitals";
 import { formatCount, formatPercent, timeAgo } from "@/lib/format";
 import { PROJECTS } from "@/lib/projects";
 import { getDeploy } from "@/server/deploys";
-import { getDailyViews, getSummaries, lastSevenDays } from "@/server/queries";
+import { getApiSummaries, getDailyViews, getSummaries, getVitals, lastSevenDays } from "@/server/queries";
 
 export default async function OverviewPage() {
   await connection();
-  const [summaries, daily, deploys] = await Promise.all([
+  const [summaries, daily, vitals, api, deploys] = await Promise.all([
     getSummaries(),
     getDailyViews(),
+    getVitals(),
+    getApiSummaries(),
     Promise.all(PROJECTS.map(getDeploy)),
   ]);
   const days = lastSevenDays();
@@ -29,7 +32,8 @@ export default async function OverviewPage() {
               : `${down.map((p) => p.name).join(", ")} ${down.length === 1 ? "is" : "are"} down`}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {PROJECTS.length} live projects, checked every 10 minutes. Traffic comes from a cookie-free beacon on each site.
+          {PROJECTS.length} live projects, checked every 10 minutes. Traffic, clicks and speed come from a cookie-free beacon on
+          each site; API calls and errors from each app&apos;s server.
         </p>
       </div>
 
@@ -37,6 +41,7 @@ export default async function OverviewPage() {
         {PROJECTS.map((project, i) => {
           const s = summaries.get(project.id);
           const deploy = deploys[i];
+          const apiStat = api.get(project.id);
           const bars = days.map((day) => ({
             label: day,
             value: daily.find((d) => d.project === project.id && d.day === day)?.views ?? 0,
@@ -67,6 +72,18 @@ export default async function OverviewPage() {
                     <span className="font-mono tabular-nums">{formatCount(s?.views7d ?? 0)}</span>
                   </div>
                   <DayBars bars={bars} />
+                </div>
+
+                <div className="mt-4 space-y-1 text-xs">
+                  <VitalsLine values={vitals.get(project.id)} />
+                  {apiStat && (
+                    <p>
+                      <span className="text-muted">API 24 h </span>
+                      <span className="font-mono tabular-nums">{formatCount(apiStat.calls)} calls</span>
+                      {apiStat.failed > 0 && <span className="text-down"> · {formatCount(apiStat.failed)} failed</span>}
+                      {apiStat.p95 !== null && <span className="text-muted"> · p95 {Math.round(apiStat.p95)} ms</span>}
+                    </p>
+                  )}
                 </div>
 
                 <p className="mt-4 border-t border-line pt-3 text-xs text-muted">

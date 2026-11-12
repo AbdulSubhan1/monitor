@@ -10,6 +10,8 @@ export async function POST(request: Request) {
   const { table, ...row } = parsed.value;
   if (table === "events") {
     await db.insert(schema.events).values(row as typeof schema.events.$inferInsert);
+  } else if (table === "vitals") {
+    await db.insert(schema.vitals).values(row as typeof schema.vitals.$inferInsert);
   } else {
     await db.insert(schema.logs).values(row as typeof schema.logs.$inferInsert);
   }

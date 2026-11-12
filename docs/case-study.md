@@ -15,10 +15,10 @@ One small Next.js app that does the three jobs on free tiers:
 
 1. **Uptime:** a GitHub Actions schedule calls a protected route every 10 minutes; each site is checked in parallel
    and the result is stored.
-2. **A cookie-free beacon:** one script tag per site sends page views, named events (`lead_submitted`) and browser
-   errors with `navigator.sendBeacon`.
-3. **An error and log endpoint:** each app's server sends errors with its own token; Next.js apps send every server
-   error automatically from `onRequestError`.
+2. **A cookie-free beacon:** one script tag per site sends page views, every CTA click as a named, labelled event
+   (`plan_selected` · `Bluepeak Plus`), browser errors and Core Web Vitals of real visitors.
+3. **An error, log and API-call endpoint:** each app's server sends errors and every API call it makes (route, status,
+   time) with its own token; Next.js apps send every server error automatically from `onRequestError`.
 4. **One dashboard:** status, uptime, traffic for 24 h and 7 days, errors and last deploy per project, plus a logs
    page with filters.
 
@@ -33,6 +33,10 @@ One small Next.js app that does the three jobs on free tiers:
   Pulse stores no tokens and a leaked token can't write as another project.
 - **The monitor can never break the apps.** `sendBeacon` with `text/plain` needs no CORS preflight and doesn't block
   rendering; server reporting has a 2-second timeout and ignores failures; browsers send at most 5 errors per page.
+- **Performance without a library.** Core Web Vitals come from the browser's own `PerformanceObserver`, with CLS
+  session windows as Google defines them, reported as p75 like Search Console.
+- **API logs that group and don't leak.** Ids in API paths become `:id` on the server, so calls group by route and no
+  customer id is stored; failures (no answer or 5xx) are counted apart from 4xx.
 - **Honest charts.** If the scheduler misses a slot, the uptime strip shows grey, not green.
 - **Fit the free tier.** Vercel Hobby crons run once a day, so the schedule lives in GitHub Actions; every run also
   deletes data older than 30 days so Neon's free storage never fills.

@@ -108,12 +108,12 @@ export async function getTop(project: string) {
       .orderBy(desc(count))
       .limit(10),
     db
-      .select({ label: events.name, count })
+      .select({ label: events.name, detail: events.label, count })
       .from(events)
       .where(and(window, eq(events.type, "event")))
-      .groupBy(events.name)
+      .groupBy(events.name, events.label)
       .orderBy(desc(count))
-      .limit(10),
+      .limit(15),
     db
       .select({ label: sql<string>`${events.referrer}`, count })
       .from(events)
@@ -137,5 +137,96 @@ export async function getLogs(filter: { project?: string; level?: Level }, limit
     .from(logs)
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(logs.createdAt))
+    .limit(limit);
+}
+
+const { vitals, apiCalls } = schema;
+const p75 = (column: Parameters<typeof sql>[1]) =>
+  sql<number | null>`percentile_cont(0.75) within group (order by ${column})`.mapWith((v) => (v === null ? null : Number(v)));
+
+export type VitalsSummary = {
+  samples: number;
+  lcp: number | null;
+  inp: number | null;
+  cls: number | null;
+  fcp: number | null;
+  ttfb: number | null;
+};
+
+// p75 of each metric over 7 days, the way Google reports Core Web Vitals; one grouped query for every project
+export async function getVitals(): Promise<Map<string, VitalsSummary>> {
+  const rows = await db
+    .select({
+      project: vitals.project,
+      samples: sql<number>`count(*)`.mapWith(Number),
+      lcp: p75(vitals.lcp),
+      inp: p75(vitals.inp),
+      cls: p75(vitals.cls),
+      fcp: p75(vitals.fcp),
+      ttfb: p75(vitals.ttfb),
+    })
+    .from(vitals)
+    .where(gte(vitals.createdAt, since(24 * 7)))
+    .groupBy(vitals.project);
+  return new Map(rows.map(({ project, ...v }) => [project, v]));
+}
+
+export async function getVitalsByPage(project: string) {
+  const samples = sql<number>`count(*)`.mapWith(Number);
+  return db
+    .select({ path: vitals.path, samples, lcp: p75(vitals.lcp), inp: p75(vitals.inp), cls: p75(vitals.cls) })
+    .from(vitals)
+    .where(and(eq(vitals.project, project), gte(vitals.createdAt, since(24 * 7))))
+    .groupBy(vitals.path)
+    .orderBy(desc(samples))
+    .limit(10);
+}
+
+// A call failed when nothing came back or the API answered 5xx; 4xx is the caller's mistake, shown separately
+const failed = sql`(${apiCalls.status} is null or ${apiCalls.status} >= 500)`;
+
+export async function getApiSummaries(): Promise<Map<string, { calls: number; failed: number; p95: number | null }>> {
+  const rows = await db
+    .select({
+      project: apiCalls.project,
+      calls: sql<number>`count(*)`.mapWith(Number),
+      failed: sql<number>`count(*) filter (where ${failed})`.mapWith(Number),
+      p95: sql<number | null>`percentile_cont(0.95) within group (order by ${apiCalls.ms})`.mapWith(Number),
+    })
+    .from(apiCalls)
+    .where(gte(apiCalls.createdAt, since(24)))
+    .groupBy(apiCalls.project);
+  return new Map(rows.map(({ project, ...s }) => [project, s]));
+}
+
+export async function getApiRoutes(project: string) {
+  const calls = sql<number>`count(*)`.mapWith(Number);
+  return db
+    .select({
+      method: apiCalls.method,
+      host: apiCalls.host,
+      route: apiCalls.route,
+      calls,
+      failed: sql<number>`count(*) filter (where ${failed})`.mapWith(Number),
+      clientErrors: sql<number>`count(*) filter (where ${apiCalls.status} between 400 and 499)`.mapWith(Number),
+      avg: sql<number>`avg(${apiCalls.ms})`.mapWith((v) => Math.round(Number(v))),
+      p95: sql<number>`percentile_cont(0.95) within group (order by ${apiCalls.ms})`.mapWith((v) => Math.round(Number(v))),
+    })
+    .from(apiCalls)
+    .where(and(eq(apiCalls.project, project), gte(apiCalls.createdAt, since(24 * 7))))
+    .groupBy(apiCalls.method, apiCalls.host, apiCalls.route)
+    .orderBy(desc(calls))
+    .limit(15);
+}
+
+export async function getRecentApiCalls(filter: { project?: string; failedOnly?: boolean }, limit = 100) {
+  const where: SQL[] = [];
+  if (filter.project) where.push(eq(apiCalls.project, filter.project));
+  if (filter.failedOnly) where.push(sql`(${apiCalls.status} is null or ${apiCalls.status} >= 400)`);
+  return db
+    .select()
+    .from(apiCalls)
+    .where(where.length ? and(...where) : undefined)
+    .orderBy(desc(apiCalls.createdAt))
     .limit(limit);
 }

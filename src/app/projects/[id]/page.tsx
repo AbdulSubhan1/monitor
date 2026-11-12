@@ -4,18 +4,30 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { DayBars, UptimeStrip } from "@/components/charts";
 import { Stat, StatusPill } from "@/components/status";
+import { MetricCell, VitalsTiles } from "@/components/vitals";
 import { formatCount, formatPercent, timeAgo } from "@/lib/format";
 import { findProject } from "@/lib/projects";
 import { toSlots } from "@/lib/slots";
 import { getDeploy } from "@/server/deploys";
-import { getChecks24h, getDailyViews, getSummaries, getTop, lastSevenDays } from "@/server/queries";
+import {
+  getApiRoutes,
+  getChecks24h,
+  getDailyViews,
+  getSummaries,
+  getTop,
+  getVitals,
+  getVitalsByPage,
+  lastSevenDays,
+} from "@/server/queries";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[id]">): Promise<Metadata> {
   const { id } = await params;
   return { title: findProject(id)?.name ?? "Not found" };
 }
 
-function TopList({ title, rows, empty }: { title: string; rows: { label: string; count: number }[]; empty: string }) {
+type TopRow = { label: string; detail?: string | null; count: number };
+
+function TopList({ title, rows, empty }: { title: string; rows: TopRow[]; empty: string }) {
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <section className="rounded-xl border border-line bg-card p-4 md:p-5">
@@ -25,12 +37,15 @@ function TopList({ title, rows, empty }: { title: string; rows: { label: string;
       ) : (
         <ol className="space-y-1.5">
           {rows.map((r) => (
-            <li key={r.label} className="relative flex justify-between gap-3 rounded px-2 py-1 text-sm">
+            <li key={`${r.label}·${r.detail ?? ""}`} className="relative flex justify-between gap-3 rounded px-2 py-1 text-sm">
               {/* Background bar sized by share of the top row */}
               <svg className="absolute inset-0 -z-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 1" aria-hidden>
                 <rect width={(r.count / max) * 100} height={1} className="fill-bar-soft" />
               </svg>
-              <span className="relative truncate font-mono text-xs leading-5">{r.label}</span>
+              <span className="relative min-w-0 truncate text-xs leading-5">
+                <span className="font-mono">{r.label}</span>
+                {r.detail && <span className="text-muted"> · {r.detail}</span>}
+              </span>
               <span className="relative font-mono text-xs tabular-nums leading-5">{formatCount(r.count)}</span>
             </li>
           ))}
@@ -46,13 +61,17 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
   if (!project) notFound();
   await connection();
 
-  const [summaries, checks, daily, top, deploy] = await Promise.all([
+  const [summaries, checks, daily, top, vitals, pageVitals, routes, deploy] = await Promise.all([
     getSummaries(),
     getChecks24h(project.id),
     getDailyViews(project.id),
     getTop(project.id),
+    getVitals(),
+    getVitalsByPage(project.id),
+    getApiRoutes(project.id),
     getDeploy(project),
   ]);
+  const v = vitals.get(project.id);
   const s = summaries.get(project.id);
   const bars = lastSevenDays().map((day) => ({ label: day, value: daily.find((d) => d.day === day)?.views ?? 0 }));
   const failures = checks.filter((c) => !c.ok);
@@ -105,9 +124,102 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
 
       <div className="grid gap-4 md:grid-cols-3">
         <TopList title="Top pages, 7 days" rows={top.pages} empty="No page views yet." />
-        <TopList title="Events, 7 days" rows={top.named} empty="No events yet." />
+        <TopList title="Clicks and events, 7 days" rows={top.named} empty="No events yet." />
         <TopList title="Referring sites, 7 days" rows={top.referrers} empty="No referrers yet." />
       </div>
+
+      <section className="mt-6 rounded-xl border border-line bg-card p-4 md:p-5">
+        <div className="mb-3 flex flex-wrap justify-between gap-2 text-sm">
+          <h2 className="font-semibold">Performance, 7 days</h2>
+          <span className="text-muted">
+            75th percentile of {formatCount(v?.samples ?? 0)} real page loads (Core Web Vitals)
+          </span>
+        </div>
+        {v ? (
+          <>
+            <VitalsTiles values={v} />
+            {pageVitals.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-muted">
+                    <tr>
+                      <th className="py-1 pr-3 font-normal">Page</th>
+                      <th className="py-1 pr-3 font-normal">Loads</th>
+                      <th className="py-1 pr-3 font-normal">LCP</th>
+                      <th className="py-1 pr-3 font-normal">INP</th>
+                      <th className="py-1 font-normal">CLS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {pageVitals.map((p) => (
+                      <tr key={p.path}>
+                        <td className="max-w-48 truncate py-1.5 pr-3 font-mono">{p.path}</td>
+                        <td className="py-1.5 pr-3 font-mono tabular-nums">{formatCount(p.samples)}</td>
+                        <td className="py-1.5 pr-3">
+                          <MetricCell metric="lcp" value={p.lcp} />
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          <MetricCell metric="inp" value={p.inp} />
+                        </td>
+                        <td className="py-1.5">
+                          <MetricCell metric="cls" value={p.cls} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted">No page loads measured yet.</p>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-line bg-card p-4 md:p-5">
+        <div className="mb-3 flex flex-wrap justify-between gap-2 text-sm">
+          <h2 className="font-semibold">API calls, 7 days</h2>
+          <Link href={`/logs/api?project=${project.id}`} className="text-muted underline hover:text-ink">
+            Every call
+          </Link>
+        </div>
+        {routes.length === 0 ? (
+          <p className="text-sm text-muted">No API calls reported yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th className="py-1 pr-3 font-normal">Route</th>
+                  <th className="py-1 pr-3 font-normal">Calls</th>
+                  <th className="py-1 pr-3 font-normal">Failed</th>
+                  <th className="py-1 pr-3 font-normal">4xx</th>
+                  <th className="py-1 pr-3 font-normal">Avg</th>
+                  <th className="py-1 font-normal">p95</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {routes.map((r) => (
+                  <tr key={`${r.method} ${r.host} ${r.route}`}>
+                    <td className="py-1.5 pr-3 font-mono">
+                      <span className="text-muted">{r.method} </span>
+                      {r.route}
+                      {r.host && <span className="block text-[11px] text-muted">{r.host}</span>}
+                    </td>
+                    <td className="py-1.5 pr-3 font-mono tabular-nums">{formatCount(r.calls)}</td>
+                    <td className={`py-1.5 pr-3 font-mono tabular-nums ${r.failed ? "text-down" : ""}`}>{formatCount(r.failed)}</td>
+                    <td className={`py-1.5 pr-3 font-mono tabular-nums ${r.clientErrors ? "text-warn" : ""}`}>
+                      {formatCount(r.clientErrors)}
+                    </td>
+                    <td className="py-1.5 pr-3 font-mono tabular-nums">{r.avg} ms</td>
+                    <td className="py-1.5 font-mono tabular-nums">{r.p95} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <p className="mt-6 text-sm text-muted">
         {deploy
