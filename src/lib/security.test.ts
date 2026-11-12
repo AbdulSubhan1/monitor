@@ -63,4 +63,10 @@ describe("detectBruteForce", () => {
       expect.objectContaining({ kind: "blocked", count: 1 }),
     ]);
   });
+
+  it("flags a source that keeps hitting demo limits, but not one or two refusals", () => {
+    const blocked = (minute: number) => ev(minute, { type: "action_blocked", account: "acc-1" });
+    expect(detectBruteForce([blocked(0), blocked(1)])).toEqual([]);
+    expect(detectBruteForce([0, 1, 2, 3, 4].map(blocked))).toEqual([expect.objectContaining({ kind: "demo_limits", count: 5 })]);
+  });
 });

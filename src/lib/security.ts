@@ -2,7 +2,8 @@ import { z } from "zod";
 
 // Pure parts of security monitoring: the shape apps send, masking, and the brute-force rules. No database here.
 
-export const SECURITY_TYPES = ["login_failed", "login_succeeded", "login_blocked", "auth_failed"] as const;
+// action_blocked: an app refused something on purpose (a live demo limit or a locked screen), not a login
+export const SECURITY_TYPES = ["login_failed", "login_succeeded", "login_blocked", "auth_failed", "action_blocked"] as const;
 export type SecurityType = (typeof SECURITY_TYPES)[number];
 export const SECURITY_MAX_BATCH = 20;
 
@@ -53,7 +54,7 @@ export type SecurityEvent = {
   createdAt: Date;
 };
 
-export type AlertKind = "one_source" | "one_account" | "spraying" | "success_after_failures" | "blocked";
+export type AlertKind = "one_source" | "one_account" | "spraying" | "success_after_failures" | "blocked" | "demo_limits";
 
 export type Alert = {
   kind: AlertKind;
@@ -67,7 +68,7 @@ export type Alert = {
 
 // Thresholds inside one 15-minute window
 export const WINDOW_MS = 15 * 60_000;
-export const RULES = { oneSource: 10, oneAccount: 5, sprayAccounts: 5, failuresBeforeSuccess: 5 } as const;
+export const RULES = { oneSource: 10, oneAccount: 5, sprayAccounts: 5, failuresBeforeSuccess: 5, blockedActions: 5 } as const;
 
 // The largest number of events inside any WINDOW_MS span (events sorted by time), with that span's first and last time
 function densest(times: Date[]): { count: number; first: Date; last: Date } {
@@ -154,6 +155,14 @@ export function detectBruteForce(events: SecurityEvent[]): Alert[] {
     });
   }
 
+  // Many refused demo actions from one source: someone is pushing on the live demo's limits
+  for (const [, list] of groupBy(sorted.filter((e) => e.type === "action_blocked"), (e) => (e.source ? `${e.project}|${e.source}` : null))) {
+    const burst = densest(list.map((e) => e.createdAt));
+    if (burst.count >= RULES.blockedActions) {
+      alerts.push({ kind: "demo_limits", project: list[0].project, severity: "warning", ...burst, accountHint: null });
+    }
+  }
+
   return alerts.sort((a, b) => (a.severity === b.severity ? b.last.getTime() - a.last.getTime() : a.severity === "critical" ? -1 : 1));
 }
 
@@ -164,6 +173,7 @@ const ALERT_TEXT: Record<AlertKind, (a: Alert) => string> = {
   success_after_failures: (a) =>
     `${a.accountHint ?? "An account"} signed in right after ${a.count} failed tries: check it was really the owner`,
   blocked: (a) => `The app blocked a source ${a.count === 1 ? "once" : `${a.count} times`} for too many attempts`,
+  demo_limits: (a) => `One source hit ${a.count} live-demo limits or locked screens within 15 minutes`,
 };
 
 export const ALERT_TITLE: Record<AlertKind, string> = {
@@ -172,6 +182,7 @@ export const ALERT_TITLE: Record<AlertKind, string> = {
   spraying: "Password spraying",
   success_after_failures: "Possible break-in",
   blocked: "Source blocked",
+  demo_limits: "Pushing on demo limits",
 };
 
 export function describeAlert(alert: Alert): string {

@@ -94,7 +94,7 @@ export const securityEvents = pgTable(
     id: bigserial({ mode: "number" }).primaryKey(),
     // A project id, or "pulse" for attempts on Pulse itself
     project: text().notNull(),
-    type: text({ enum: ["login_failed", "login_succeeded", "login_blocked", "auth_failed"] }).notNull(),
+    type: text({ enum: ["login_failed", "login_succeeded", "login_blocked", "auth_failed", "action_blocked"] }).notNull(),
     source: text(),
     account: text(),
     accountHint: text(),
