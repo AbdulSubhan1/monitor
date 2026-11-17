@@ -64,6 +64,30 @@ export const PROJECTS: Project[] = [
     origins: ["https://policydesk-opal.vercel.app"],
     deploys: { from: "vercel", projectId: "prj_3G7KUgXElc6Ko6J3LvPdm7lQCoB5" },
   },
+  {
+    id: "agencydesk",
+    name: "AgencyDesk",
+    url: "https://agencydesk-hazel.vercel.app",
+    checkPath: "/",
+    origins: ["https://agencydesk-hazel.vercel.app"],
+    deploys: { from: "vercel", projectId: "prj_AkDzcurpkS81oO0z0IqsEg0AAukn" },
+  },
+  {
+    id: "agency-us",
+    name: "Agency (US)",
+    url: "https://agency-us.vercel.app",
+    checkPath: "/",
+    origins: ["https://agency-us.vercel.app"],
+    deploys: { from: "vercel", projectId: "prj_DKTlTdU3XzzSwLSg03hrqI1uml1a" },
+  },
+  {
+    id: "agency-asia",
+    name: "Agency (Asia)",
+    url: "https://agency-asia.vercel.app",
+    checkPath: "/",
+    origins: ["https://agency-asia.vercel.app"],
+    deploys: { from: "vercel", projectId: "prj_woRdWsurSgByNbieR0cpZmXF7aWW" },
+  },
 ];
 
 export const PROJECT_IDS = PROJECTS.map((p) => p.id) as [string, ...string[]];
