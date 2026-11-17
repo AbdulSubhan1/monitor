@@ -1,4 +1,4 @@
-// The projects Pulse watches. Five sites never need an admin screen, so this list is code, reviewed in PRs.
+// The projects Pulse watches. A handful of sites never need an admin screen, so this list is code, reviewed in PRs.
 
 export type Deploys =
   | { from: "vercel"; projectId: string }
@@ -39,6 +39,14 @@ export const PROJECTS: Project[] = [
     checkPath: "/",
     origins: ["https://jobfit-tan.vercel.app"],
     deploys: { from: "vercel", projectId: "prj_U5DuOpqWHTXuPNsjrbq2BEcmPDBM" },
+  },
+  {
+    id: "regread",
+    name: "RegRead",
+    url: "https://regread.vercel.app",
+    checkPath: "/",
+    origins: ["https://regread.vercel.app"],
+    deploys: { from: "vercel", projectId: "prj_79PKaMWDFreaBVBcovLJBYogAqEC" },
   },
   {
     id: "brokwise",
