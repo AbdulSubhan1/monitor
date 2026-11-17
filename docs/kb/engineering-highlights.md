@@ -1,6 +1,6 @@
 # Engineering highlights
 
-What Pulse does beyond "it works", and why. Pulse is a small monitor for my five live projects: uptime, a
+What Pulse does beyond "it works", and why. Pulse is a small monitor for my six live projects: uptime, a
 cookie-free page-view beacon, an error and log endpoint, and one dashboard. Each item says the decision, why, and where
 it lives and is tested.
 
@@ -8,8 +8,8 @@ it lives and is tested.
 
 | Decision | Why | Where |
 | --- | --- | --- |
-| **Build it, don't rent it.** A self-built ingest on Neon Postgres instead of GTM, a pixel vendor or Axiom. | Five small sites don't need a vendor, and free plans add scripts, cookies and limits I can't control. Building the ingest shows the parts a vendor hides: input validation, auth for writes, privacy, retention. | whole repo |
-| **Projects are code, not data.** | Five projects never need an admin screen, a projects table or a form. Adding one is a reviewed PR to one typed list. | `src/lib/projects.ts` |
+| **Build it, don't rent it.** A self-built ingest on Neon Postgres instead of GTM, a pixel vendor or Axiom. | Six small sites don't need a vendor, and free plans add scripts, cookies and limits I can't control. Building the ingest shows the parts a vendor hides: input validation, auth for writes, privacy, retention. | whole repo |
+| **Projects are code, not data.** | Six projects never need an admin screen, a projects table or a form. Adding one is a reviewed PR to one typed list. | `src/lib/projects.ts` |
 | **Five tables, no deploys table.** | `checks`, `events`, `logs`, `vitals`, `api_calls` are the only things that must be stored. The last deploy is read live from the Vercel and GitHub APIs and cached 10 minutes, so it can never be stale or out of sync. | `src/server/db/schema.ts`, `src/server/deploys.ts` |
 | **QStash as the scheduler (after GitHub Actions failed).** | Vercel Hobby crons run once a day; uptime needs every 10 minutes. The first try was a GitHub Actions schedule (free on a public repo), but GitHub's schedules are best effort: 45 minutes after setup it had not run once. An Upstash QStash schedule (free plan, 500 messages a day shared with PaySandbox; 144 used) now calls the check. It forwards our own `CRON_SECRET`, so the route keeps one auth check, and it is created by a protected `/api/cron/setup` route so the QStash token never leaves the server. No retries: a doubled check is worse than a missed one 10 minutes before the next. A missed slot still shows grey, not green. The GitHub workflow stays for manual runs. | `src/server/qstash.ts`, `src/app/api/cron/setup/route.ts`, `src/lib/slots.ts` |
 | **Same stack as my other apps.** | Next.js 16, Drizzle, Neon, PGlite locally, Zod, Vitest: no new libraries. Charts are a few SVG rects. | `package.json`, `src/components/charts.tsx` |

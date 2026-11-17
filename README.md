@@ -1,7 +1,7 @@
 # Pulse
 
 A small monitor for my own live projects, in one Next.js app: uptime checks, a cookie-free page-view beacon, an
-error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + Axiom, for five sites.
+error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + Axiom, for six sites.
 
 **Live:** https://abdulsubhan-pulse.vercel.app
 
@@ -10,6 +10,7 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
 | Portfolio | https://abdulsubhan1.github.io |
 | PaySandbox | https://paysandbox.vercel.app |
 | JobFit | https://jobfit-tan.vercel.app |
+| RegRead | https://regread.vercel.app |
 | Brokwise | https://brokwise.vercel.app |
 | PolicyDesk | https://policydesk-opal.vercel.app |
 
