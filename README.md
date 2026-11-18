@@ -14,8 +14,8 @@ error and log endpoint, and one dashboard. Think a tiny uptime robot + pixel + A
 | Brokwise | https://brokwise.vercel.app |
 | PolicyDesk | https://policydesk-opal.vercel.app |
 | AgencyDesk | https://agencydesk-hazel.vercel.app |
-| Agency (US) | https://agency-us.vercel.app |
-| Agency (Asia) | https://agency-asia.vercel.app |
+| Radianzest | https://agency-us.vercel.app |
+| Devxonic | https://agency-asia.vercel.app |
 
 ## What it does
 
