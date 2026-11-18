@@ -74,7 +74,7 @@ export const PROJECTS: Project[] = [
   },
   {
     id: "agency-us",
-    name: "Agency (US)",
+    name: "Radianzest",
     url: "https://agency-us.vercel.app",
     checkPath: "/",
     origins: ["https://agency-us.vercel.app"],
@@ -82,7 +82,7 @@ export const PROJECTS: Project[] = [
   },
   {
     id: "agency-asia",
-    name: "Agency (Asia)",
+    name: "Devxonic",
     url: "https://agency-asia.vercel.app",
     checkPath: "/",
     origins: ["https://agency-asia.vercel.app"],
