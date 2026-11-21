@@ -3,7 +3,7 @@ import { and, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { MetricFacts, ProjectFacts } from "@/lib/facts";
 import { AUTO_EVENTS } from "@/lib/ingest";
-import { PROJECTS, type Project } from "@/lib/projects";
+import { findProject, PROJECTS, type Project } from "@/lib/projects";
 import { bucketFormat, dayLabel, monthLabel, type BucketUnit, type Range } from "@/lib/range";
 import { DASHBOARD_TZ, localDay, startOfLocalDay } from "@/lib/time";
 import { METRICS, type Metric } from "@/lib/vitals";
@@ -523,8 +523,8 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
       vitals: vit.get(p.id) ?? emptyVitals(),
       regressions: regs.get(p.id) ?? [],
       api: a && a.calls > 0 ? a : null,
-      referrals: [...referrals].map(([from, views]) => ({ from, views })).sort((x, y) => y.views - x.views),
-      outbound: [...outbound].map(([to, clicks]) => ({ to, clicks })).sort((x, y) => y.clicks - x.clicks),
+      referrals: [...referrals].map(([from, views]) => ({ from, name: findProject(from)!.name, views })).sort((x, y) => y.views - x.views),
+      outbound: [...outbound].map(([to, clicks]) => ({ to, name: findProject(to)!.name, clicks })).sort((x, y) => y.clicks - x.clicks),
       topPage: pg[0] ? { path: pg[0].key, views: pg[0].views } : null,
       pageCount: pg.length,
       topAction: taggedEv[0] ? { name: taggedEv[0].key, label: taggedEv[0].label || null, count: taggedEv[0].events } : null,

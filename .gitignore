@@ -9,4 +9,3 @@ out
 next-env.d.ts
 coverage
 .worktree-port
-scripts/smoke-*.ts

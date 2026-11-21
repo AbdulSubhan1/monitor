@@ -44,8 +44,8 @@ export type ProjectFacts = {
   regressions: Regression[];
   api: { calls: number; failed: number; p95: number | null } | null;
   // Other watched projects that sent page views here (by ?ref= or referrer), and clicks from here to them
-  referrals: { from: string; views: number }[];
-  outbound: { to: string; clicks: number }[];
+  referrals: { from: string; name: string; views: number }[];
+  outbound: { to: string; name: string; clicks: number }[];
   topPage: { path: string; views: number } | null;
   pageCount: number;
   topAction: { name: string; label: string | null; count: number } | null;
