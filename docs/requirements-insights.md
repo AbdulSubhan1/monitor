@@ -89,10 +89,11 @@ views and vitals.
 other `bot|crawler|spider`, `HeadlessChrome`, `Lighthouse`, `PageSpeed`, `Chrome-Lighthouse`, `Prerender`). Keep the
 existing `navigator.webdriver` and localhost skip.
 
-**A6. Visitors (server side, in `/api/collect`).** `visitor = HMAC(secret, day + project + ip + user-agent)` truncated
-to 16 chars, stored on page views and events. `day` is the local day in the dashboard timezone (Q1). The secret is a
-new env var `VISITOR_SECRET` (fallback to `LOG_SIGNING_SECRET`). Raw IP and UA are never stored. The same person counts
-once per day per project; across days they are different visitors (documented as "daily visitors").
+**A6. Visitors (server side, in `/api/collect`).** `visitor = HMAC(secret, project + "|" + ip + "|" + user-agent)`
+truncated to 16 chars, stored on page views and events; no day in it (changed from a daily hash, see §12a). The secret
+is a new env var `VISITOR_SECRET` (fallback to `LOG_SIGNING_SECRET`); changing it makes every visitor new. Raw IP and
+UA are never stored, and hashes live only in raw events (60 days). One browser on one device counts once per range,
+however many pages or days.
 
 **A7. Owner opt-out ("Don't count me").** Opening any tracked site with `?pulse=ignore` sets `localStorage["pulse:ignore"]="1"`
 on that site's origin; `?pulse=count` removes it. While set, the beacon sends nothing. Note: localStorage is per

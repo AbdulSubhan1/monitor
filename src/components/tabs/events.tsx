@@ -127,7 +127,7 @@ export async function EventsTab({ f, range }: { f: ProjectFacts; range: Range })
                   <p className="mt-1 text-xs text-muted">Starts after the update.</p>
                 ) : name === "time_on_page" ? (
                   <p className="mt-1 text-xs">
-                    {formatDuration(ms)} in all, about {formatDuration(ms / total)} per page view
+                    {formatDuration(ms)} in all{f.views > 0 && <>, about {formatDuration(ms / f.views)} per page view</>}
                   </p>
                 ) : (
                   <ul className="mt-1 flex flex-col gap-0.5 text-xs">
