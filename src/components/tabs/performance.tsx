@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, Empty, Hint, LoadFailed, MetricCard, MetricValue } from "@/components/insight";
 import { hrefWith } from "@/components/range-picker";
 import { formatCount } from "@/lib/format";
-import { dayLabel, type Range } from "@/lib/range";
+import { dayLabel, resolveRange, type Range } from "@/lib/range";
 import { localDay, localHour } from "@/lib/time";
 import { PLAIN_METRIC, STORY_METRICS } from "@/lib/stories";
 import { formatMetric, METRICS, rate, type Metric } from "@/lib/vitals";
@@ -127,7 +127,9 @@ type TrendRow = Record<string, unknown>;
 // One small line per measure, coloured by band, with deploy markers
 function Trend({ rows, range, deploys }: { rows: TrendRow[]; range: Range; deploys: DeployMark[] }) {
   if (rows.length === 0) return <Empty>No page loads measured in this range yet.</Empty>;
-  const keys = rows.map((r) => String(r.bucket));
+  // Every bucket of the range (12 months: the last 30 days kept), so gaps show as gaps
+  const keys = (range.key === "12m" ? resolveRange("30d", range.end, range.tz) : range).buckets.map((b) => b.key);
+  const byKey = new Map(rows.map((r) => [String(r.bucket), r]));
   const first = keys[0];
   const last = keys[keys.length - 1];
   const label = (k: string) => (k.length > 10 ? `${dayLabel(k.slice(0, 10))} ${k.slice(11)}:00` : dayLabel(k));
@@ -137,8 +139,11 @@ function Trend({ rows, range, deploys }: { rows: TrendRow[]; range: Range; deplo
   return (
     <div className="flex flex-col gap-4">
       {STORY_METRICS.map((m: Metric) => {
-        const values = rows.map((r) => (r[m] === null || r[m] === undefined ? null : Number(r[m])));
-        const counts = rows.map((r) => Number(r[`${m}N`] ?? 0));
+        const values = keys.map((k) => {
+          const v = byKey.get(k)?.[m];
+          return v === null || v === undefined ? null : Number(v);
+        });
+        const counts = keys.map((k) => Number(byKey.get(k)?.[`${m}N`] ?? 0));
         const max = Math.max(METRICS[m].poor, ...values.map((x) => x ?? 0));
         const w = Math.max(1, keys.length - 1);
         const y = (x: number) => 30 - (Math.min(x, max) / max) * 28;

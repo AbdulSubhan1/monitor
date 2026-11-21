@@ -1,5 +1,7 @@
 import { bearerMatches } from "@/lib/tokens";
 import { notePulseAuthFailure, pulseSourceBlocked } from "@/server/security";
+import { db } from "@/server/db";
+import { runRollups } from "@/server/rollups";
 import { runChecks } from "@/server/uptime";
 
 // Called every 10 minutes by the QStash schedule (src/server/qstash.ts), or by hand from the GitHub workflow, with CRON_SECRET
@@ -10,5 +12,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   const results = await runChecks();
-  return Response.json({ checked: results.length, down: results.filter((r) => !r.ok).map((r) => r.project) });
+  // Daily rollups for completed days; a failure here never hides the uptime result
+  const rolledUp = await runRollups(db).catch((err: unknown) => {
+    console.error("rollups failed", err);
+    return null;
+  });
+  return Response.json({ checked: results.length, down: results.filter((r) => !r.ok).map((r) => r.project), rolledUp });
 }

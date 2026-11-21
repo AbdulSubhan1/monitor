@@ -10,7 +10,8 @@ import { formatCount } from "@/lib/format";
 import { findProject, PROJECTS } from "@/lib/projects";
 import { parseRange, RANGE_PHRASE, resolveRange } from "@/lib/range";
 import { buildStories, storiesFor, tally } from "@/lib/stories";
-import { getFacts } from "@/server/insights";
+import { getDeploys } from "@/server/deploys";
+import { getFacts, regressionsFor } from "@/server/insights";
 import { getSecurity } from "@/server/queries";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
@@ -21,7 +22,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const path = "/";
   const keep = { range: range.key };
 
-  const [facts, security] = await Promise.all([getFacts(range).catch(() => null), getSecurity().catch(() => null)]);
+  const deploysOf = (id: string) => getDeploys(findProject(id)!);
+  const [facts, security] = await Promise.all([getFacts(range, undefined, regressionsFor(range, deploysOf)).catch(() => null), getSecurity().catch(() => null)]);
   const all = facts ? PROJECTS.map((p) => facts.get(p.id)!) : [];
   const stories = facts ? storiesFor(buildStories(all, { range, scope: { kind: "home" } })) : [];
   const down = all.filter((f) => f.status.downNow);

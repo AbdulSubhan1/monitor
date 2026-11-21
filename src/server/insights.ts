@@ -8,6 +8,7 @@ import { bucketFormat, dayLabel, monthLabel, type BucketUnit, type Range } from 
 import { localDay, startOfUtcDay } from "@/lib/time";
 import { METRICS, type Metric } from "@/lib/vitals";
 import { averageVisitMs, buildVisits, commonPaths, entriesAndExits, returningVisitors, topKey, type Visit, type VisitRow } from "@/lib/visits";
+import { findRegressions } from "@/lib/regressions";
 import { db, schema } from "@/server/db";
 
 // Range queries for the dashboard. Grouped per project (never one query per project). 24h / 7d / 30d read raw rows,
@@ -454,6 +455,24 @@ async function busiest(range: Range, ids?: string[]) {
 // ---------------------------------------------------------------------------------------------------------------
 
 export type RegressionSource = (projectIds: string[]) => Promise<Map<string, ProjectFacts["regressions"]>>;
+
+// E4 for the given projects: deploys inside the range (and vitals kept 30 days) that made speed worse
+export function regressionsFor(range: Range, deploysOf: (id: string) => Promise<{ at: Date; commit: string | null }[]>): RegressionSource {
+  return async (projectIds) => {
+    const from = shortStart(range);
+    const [rows, deploys] = await Promise.all([
+      db
+        .select({ project: vitals.project, at: vitals.createdAt, lcp: vitals.lcp, inp: vitals.inp, cls: vitals.cls, ttfb: vitals.ttfb })
+        .from(vitals)
+        .where(and(gte(vitals.createdAt, new Date(from.getTime() - 7 * DAY)), inArray(vitals.project, projectIds)))
+        .limit(50_000),
+      Promise.all(projectIds.map((id) => deploysOf(id))),
+    ]);
+    return new Map(
+      projectIds.map((id, i) => [id, findRegressions(rows.filter((r) => r.project === id), deploys[i], from, range.end)]),
+    );
+  };
+}
 
 // Everything the stories and the cards need for every project (or the given ones), in grouped queries
 export async function getFacts(range: Range, ids?: string[], regressions?: RegressionSource): Promise<Map<string, ProjectFacts>> {

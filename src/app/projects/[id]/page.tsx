@@ -15,8 +15,8 @@ import { formatPercent } from "@/lib/format";
 import { findProject } from "@/lib/projects";
 import { parseRange, RANGE_PHRASE, resolveRange } from "@/lib/range";
 import { buildStories, storiesFor, type Tab } from "@/lib/stories";
-import { getDeploy } from "@/server/deploys";
-import { getFacts } from "@/server/insights";
+import { getDeploys } from "@/server/deploys";
+import { getFacts, regressionsFor } from "@/server/insights";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -50,7 +50,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   const keep = { range: range.key, tab, sort: one(sp.sort), device: one(sp.device) };
   const base = `/projects/${id}`;
 
-  const [all, deploy] = await Promise.all([getFacts(range, [id]).catch(() => null), getDeploy(project)]);
+  const deploys = await getDeploys(project);
+  const deploy = deploys[0] ?? null;
+  const all = await getFacts(range, [id], regressionsFor(range, async () => deploys)).catch(() => null);
   const f = all?.get(id);
   const stories = f ? storiesFor(buildStories([f], { range, scope: { kind: "project", id } }), tab) : [];
   const state = !f || f.status.downNow === null ? "unknown" : f.status.downNow ? "down" : "up";
@@ -111,7 +113,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
       ) : tab === "events" ? (
         <EventsTab f={f} range={range} />
       ) : tab === "performance" ? (
-        <PerformanceTab id={id} range={range} device={parseDevice(sp.device)} params={keep} deploys={deploy ? [{ at: deploy.at, commit: deploy.commit }] : []} />
+        <PerformanceTab id={id} range={range} device={parseDevice(sp.device)} params={keep} deploys={deploys.map((d) => ({ at: d.at, commit: d.commit }))} />
       ) : tab === "uptime" ? (
         <UptimeTab project={project} range={range} />
       ) : (
