@@ -71,7 +71,7 @@ export async function OverviewTab({ f, range, deploy }: { f: ProjectFacts; range
         <TrafficChart points={f.buckets} range={range} />
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card id="paths" title="Most common path" hint={`Pulse finds this by itself from the order people open pages in. Nothing to set up.${twelve ? " Last 60 days." : ""}`}>
           {!visits ? (
             <LoadFailed what="visits" />

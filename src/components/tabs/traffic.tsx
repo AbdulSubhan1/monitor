@@ -91,7 +91,7 @@ export async function TrafficTab({ f, range, sort, params }: { f: ProjectFacts; 
         </Hint>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card id="sources" title="Where visitors came from" hint={<>The site that linked here, or the <span className="font-mono">?ref=</span> tag on the link.</>}>
           {f.sources.length === 0 ? (
             <Empty>No page views in this range.</Empty>

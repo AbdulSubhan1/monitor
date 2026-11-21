@@ -111,7 +111,7 @@ export async function EventsTab({ f, range }: { f: ProjectFacts; range: Range })
       </Card>
 
       <Card id="auto" title="Tracked automatically" aside="Every site, no code" hint="The Pulse script records these on every project by itself.">
-        <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           {AUTO_EVENTS.map((name) => {
             const rows = auto.filter((a) => a.key === name).sort((a, b) => b.events - a.events);
             const total = rows.reduce((s, r) => s + r.events, 0);

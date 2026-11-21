@@ -63,7 +63,7 @@ export async function PerformanceTab({
         {!v ? (
           <LoadFailed what="speed measures" />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STORY_METRICS.map((m) => (
               <MetricCard key={m} metric={m} title={PLAIN_METRIC[m]} value={v[m].p75} samples={v[m].samples} />
             ))}

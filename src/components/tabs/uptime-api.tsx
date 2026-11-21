@@ -96,7 +96,7 @@ export async function ApiTab({ project, range }: { project: Project; range: Rang
       ) : routes.length === 0 ? (
         <Empty>
           No API calls reported. The app&apos;s server sends each call (method, route, status, time) to <span className="font-mono">/api/calls</span> with its
-          project token; see the README, “Report API calls”.
+          project token; the README shows the one <span className="font-mono">fetch</span> it takes.
         </Empty>
       ) : (
         <div className="overflow-x-auto">

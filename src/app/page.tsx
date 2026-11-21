@@ -86,7 +86,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         {!facts ? (
           <p className="rounded-xl border border-line bg-card p-5 text-sm text-muted">Couldn&apos;t load the projects&apos; numbers. Reload the page to try again.</p>
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {busy.map((f) => (
               <ProjectCard key={f.id} f={f} all={all} rangeKey={range.key} range={range} />
             ))}
