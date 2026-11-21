@@ -7,6 +7,7 @@ export type Deploys =
 export type Project = {
   id: string;
   name: string;
+  // "" while the site waits for its first deploy: it is left out of checks and pages until the URL is filled in
   url: string;
   // Path the uptime check requests. A redirect (3xx) counts as up: PolicyDesk sends visitors to its login page.
   checkPath: string;
@@ -15,7 +16,7 @@ export type Project = {
   deploys: Deploys;
 };
 
-export const PROJECTS: Project[] = [
+const ALL_PROJECTS: Project[] = [
   {
     id: "portfolio",
     name: "Portfolio",
@@ -88,7 +89,18 @@ export const PROJECTS: Project[] = [
     origins: ["https://agency-asia.vercel.app"],
     deploys: { from: "vercel", projectId: "prj_woRdWsurSgByNbieR0cpZmXF7aWW" },
   },
+  {
+    // Client shop (hair oil, cash on delivery). TODO when it is deployed: url, origins and the Vercel project id
+    id: "zaitulhusn",
+    name: "Zaitul Husn",
+    url: "",
+    checkPath: "/",
+    origins: [],
+    deploys: { from: "vercel", projectId: "" },
+  },
 ];
+
+export const PROJECTS = ALL_PROJECTS.filter((p) => p.url);
 
 export const PROJECT_IDS = PROJECTS.map((p) => p.id) as [string, ...string[]];
 
