@@ -277,6 +277,42 @@ and add `?ref=portfolio` to links to the other projects. Not part of this build;
 | Q4 | "Got it" dismiss on a story (per browser, returns if it gets worse) | Not in this build |
 | Q5 | Rollup table vs longer raw retention for 12 months | Rollup table (B4) |
 
+## 12a. Decisions (agreed 21 Nov, during plan review)
+
+Q5: rollups, plus a `total` kind per project per day (visitors can't be summed across pages). 12m = rollups for
+completed days + raw rows for today. Q1: one constant `DASHBOARD_TZ` in `src/lib/time.ts` (Asia/Karachi until Abdul
+says otherwise), used for buckets, rollup days, the visitor hash day and the daily caps. Q2–Q4: pending, nothing built.
+
+1. **Events** = tagged / `track()` events only. Automatic events (A2) appear only under "Tracked automatically" and
+   never count in stat cards, cards or event rules.
+2. Generic per-tab info stories (blue/green): top page share, top path, top action, best/worst metric with ≥ 20
+   samples. Overview shows all of the project's stories (max 7, ranked by D3).
+3. **Funnel finished**: the top common path has ≥ 3 steps, ≥ 3 distinct visitors followed it, and its last page is the
+   most common exit page. Title "N visitors went all the way to /x".
+4. **New record**: busiest day across rollups + raw, only with ≥ 20 views, ≥ 14 days of data for the project, and the
+   record inside the range. For 24h: busiest hour against raw data (60 days).
+5. **Vitals recovered**: poor in the previous period → good now, ≥ 20 samples on both sides.
+6. **Cross-site visitor**: a referrer host or `source` matching another watched project counts.
+7. **Vitals trend** follows the page range (24h hourly, 7d/30d daily, 12m = last 30 days with a "speed data is kept
+   30 days" note).
+8. On **12m**, paths, live feed, visits and avg time use the last 60 days of raw data and say so in the subtitle.
+9. **Visitors before the update**: if the range starts before the first visitor value, show the count with "counted
+   since <date>"; with none at all show "—" with "starts after the update".
+10. **Avg time on site**: per visit, sum `time_on_page`; average over visits that have one.
+11. The 40 automatic events per page load include `time_on_page`, which is always kept.
+12. **Device split**: `?device=all|mobile|desktop` links on the Performance tab only.
+13. **Uptime bars**: 24h one per check, 7d per hour, 30d per day, 12m shows the 30-day view with "checks are kept 30
+    days".
+14. **Slider refresh**: `router.refresh()` every 5 minutes, no new API; the new list applies when the current story
+    ends. Retry = reload the same URL.
+15. Pages table sorts with server-side `?sort=` links.
+16. Guide follows this doc (per-project `?pulse=ignore` links, tour written around the slider), not the canvas.
+17. Readable names also map `open` → "opened".
+18. **Site down**: red only if down now or failures in the last 24 h; older failures in the range are amber "N failed
+    checks".
+19. **Deploy history**: up to 20 deploys from Vercel and from GitHub Pages (Portfolio), same cache. No token = no E4
+    story, no error.
+
 ## 13. Suggested order
 
 1. B1 migration + A6 visitors + A3 source + A5 bots (fixes the numbers first).
