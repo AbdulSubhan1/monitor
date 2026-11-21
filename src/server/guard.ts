@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { createHmac } from "node:crypto";
+import { startOfLocalDay } from "@/lib/time";
 import { db, schema } from "@/server/db";
 
 // Keeps the free Neon database safe from floods: in-memory rate limits (no database cost) and daily row caps checked
@@ -25,7 +26,11 @@ export function recentHits(key: string, windowMs: number, now = Date.now()): num
 }
 
 // --- Daily row caps -----------------------------------------------------------------------------------------------
-// Real traffic is far below these. Worst case (every project at its cap for 30 days) stays well under Neon's 0.5 GB.
+// Real traffic is far below these. Days are dashboard-timezone days (src/lib/time.ts).
+// Size estimate at the caps (~200 bytes a row with indexes): events 5,000/day/project kept 60 days, the rest 30 days,
+// all under the 30,000/day total: at most ~30,000 x 60 days x 200 B ≈ 360 MB in the worst case, real traffic a tiny
+// fraction. daily_stats adds one row per project, day and page/event/source/device (capped at 200 a day per project in
+// src/server/rollups.ts): 9 projects x 200 x 400 days x ~120 B ≈ 86 MB worst case, a few MB in practice.
 export const DAILY_CAPS = { events: 5_000, logs: 1_000, vitals: 2_000, api_calls: 5_000, security_events: 1_000 } as const;
 export const DAILY_TOTAL_CAP = 30_000;
 type Table = keyof typeof DAILY_CAPS;
@@ -42,9 +47,7 @@ const CACHE_MS = 60_000;
 const counts = new Map<string, { day: string; count: number; at: number }>();
 
 function startOfDay(now: number): Date {
-  const d = new Date(now);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+  return startOfLocalDay(new Date(now));
 }
 
 async function todayCount(table: Table, project: string | null, now: number): Promise<number> {

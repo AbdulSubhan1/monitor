@@ -29,6 +29,9 @@ describe("parseBeacon", () => {
         label: null,
         path: "/car",
         referrer: "www.google.com",
+        source: null,
+        device: null,
+        value: null,
       },
     });
   });
@@ -108,7 +111,17 @@ describe("vitals", () => {
     const body = JSON.stringify({ project: "brokwise", type: "vitals", path: "/car?x=1", lcp: 1800, cls: 0.04, ttfb: 220 });
     expect(parseBeacon(body, BROKWISE)).toEqual({
       ok: true,
-      value: { table: "vitals", project: "brokwise", path: "/car", lcp: 1800, inp: null, cls: 0.04, fcp: null, ttfb: 220 },
+      value: {
+        table: "vitals",
+        project: "brokwise",
+        path: "/car",
+        lcp: 1800,
+        inp: null,
+        cls: 0.04,
+        fcp: null,
+        ttfb: 220,
+        device: null,
+      },
     });
   });
 
@@ -154,5 +167,30 @@ describe("parseCalls", () => {
     expect(parseCalls(call({ status: 99 }))).toMatchObject({ ok: false, status: 400 });
     const many = Array.from({ length: 51 }, () => ({ method: "GET", path: "/", status: 200, ms: 5 }));
     expect(parseCalls(JSON.stringify(many))).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("insights fields", () => {
+  const send = (m: object) => parseBeacon(JSON.stringify({ project: "brokwise", path: "/", ...m }), BROKWISE);
+
+  it("keeps a cleaned source and the device on page views", () => {
+    const parsed = send({ type: "pageview", source: "LinkedIn Post!", device: "mobile" });
+    expect(parsed.ok && parsed.value).toMatchObject({ source: "linkedin-post", device: "mobile" });
+    expect(send({ type: "pageview", device: "tablet" })).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("accepts automatic events, and a value only on time_on_page", () => {
+    expect(send({ type: "event", name: "scroll_depth", label: "75" })).toMatchObject({ ok: true });
+    const timed = send({ type: "event", name: "time_on_page", value: 42_000 });
+    expect(timed.ok && timed.value).toMatchObject({ name: "time_on_page", value: 42_000 });
+    expect(send({ type: "event", name: "time_on_page" })).toMatchObject({ ok: false, status: 400 });
+    expect(send({ type: "event", name: "plan_selected", value: 5 })).toMatchObject({ ok: false, status: 400 });
+    expect(send({ type: "event", name: "time_on_page", value: 7 * 3_600_000 })).toMatchObject({ ok: false });
+  });
+
+  it("stores the device of a vitals report and still rejects unknown fields", () => {
+    const parsed = send({ type: "vitals", lcp: 1200, device: "desktop" });
+    expect(parsed.ok && parsed.value).toMatchObject({ device: "desktop" });
+    expect(send({ type: "pageview", visitor: "abc" })).toMatchObject({ ok: false, status: 400 });
   });
 });

@@ -1,4 +1,4 @@
-import { bigserial, boolean, index, integer, jsonb, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, date, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp } from "drizzle-orm/pg-core";
 
 // One row per uptime check: every 10 minutes per project
 export const checks = pgTable(
@@ -16,7 +16,8 @@ export const checks = pgTable(
   (t) => [index("checks_project_time").on(t.project, t.checkedAt)],
 );
 
-// Pageviews and named events from the beacon. No cookie, no IP, no user id: counts only.
+// Pageviews and named events from the beacon. No cookie, no IP, no user id. `visitor` is a keyed hash that changes
+// every day (src/lib/visitor.ts), enough to count people per day and to group one visit's pages.
 export const events = pgTable(
   "events",
   {
@@ -29,9 +30,19 @@ export const events = pgTable(
     label: text(),
     path: text().notNull(),
     referrer: text(),
+    // Daily visitor hash; null on rows from before visitors were counted
+    visitor: text(),
+    // The ?ref= or utm_source tag of the link that brought the visitor (first page view of a load only)
+    source: text(),
+    device: text({ enum: ["mobile", "desktop"] }),
+    // A measured amount: ms of visible time for "time_on_page"
+    value: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("events_project_time").on(t.project, t.createdAt)],
+  (t) => [
+    index("events_project_time").on(t.project, t.createdAt),
+    index("events_project_time_visitor").on(t.project, t.createdAt, t.visitor),
+  ],
 );
 
 // Errors and key logs: from app servers (with a token) and from browsers (through the beacon)
@@ -62,6 +73,7 @@ export const vitals = pgTable(
     cls: real(),
     fcp: integer(),
     ttfb: integer(),
+    device: text({ enum: ["mobile", "desktop"] }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("vitals_project_time").on(t.project, t.createdAt)],
@@ -103,4 +115,27 @@ export const securityEvents = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("security_project_time").on(t.project, t.createdAt), index("security_time").on(t.createdAt)],
+);
+
+// One row per project, local day (src/lib/time.ts), kind and key, written by the 10-minute cron for completed days.
+// Raw events are kept 60 days; these are kept 400 so the 12-month view has data. Kinds:
+//   total  key ""           all page views, visitors and tagged events of the day
+//   page   key path         views and visitors of one page
+//   event  key name, label  tagged and automatic events (value_sum: time_on_page ms)
+//   source key source/host  page views and visitors per source ("" = unknown)
+//   device key mobile/desktop
+export const dailyStats = pgTable(
+  "daily_stats",
+  {
+    project: text().notNull(),
+    day: date({ mode: "string" }).notNull(),
+    kind: text({ enum: ["total", "page", "event", "source", "device"] }).notNull(),
+    key: text().notNull(),
+    label: text().notNull().default(""),
+    views: integer().notNull().default(0),
+    visitors: integer().notNull().default(0),
+    events: integer().notNull().default(0),
+    valueSum: bigint({ mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.project, t.day, t.kind, t.key, t.label] }), index("daily_stats_day").on(t.day)],
 );

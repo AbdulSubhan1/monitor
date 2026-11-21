@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { findProject, PROJECT_IDS } from "@/lib/projects";
+import { cleanSource } from "@/lib/visitor";
 
 // Pure parsing for the ingest endpoints, kept free of the database so it is unit tested on its own.
 
@@ -15,6 +16,17 @@ const path = z.string().max(300);
 const label = z.string().trim().min(1).max(80);
 // A browser timing in ms; over a minute is a broken measurement, not a slow page
 const ms = z.number().int().min(0).max(60_000);
+const device = z.enum(["mobile", "desktop"]);
+
+// Sent by the beacon on every site without any code; the dashboard shows them as "Tracked automatically" and never
+// counts them as the site's own events
+export const AUTO_EVENTS = ["scroll_depth", "section_viewed", "outbound_clicked", "file_downloaded", "time_on_page"] as const;
+export type AutoEvent = (typeof AUTO_EVENTS)[number];
+export function isAutoEvent(name: string): name is AutoEvent {
+  return (AUTO_EVENTS as readonly string[]).includes(name);
+}
+// Visible time on one page; over 6 hours is a tab left open, not reading
+export const TIME_ON_PAGE_MAX_MS = 6 * 3_600_000;
 
 const beaconSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -22,8 +34,18 @@ const beaconSchema = z.discriminatedUnion("type", [
     type: z.literal("pageview"),
     path,
     referrer: z.string().max(200).optional(),
+    // The link's ?ref= or utm_source; cleaned again here, never trusted as sent
+    source: z.string().max(100).optional(),
+    device: device.optional(),
   }),
-  z.strictObject({ project: z.enum(PROJECT_IDS), type: z.literal("event"), name: eventName, label: label.optional(), path }),
+  z.strictObject({
+    project: z.enum(PROJECT_IDS),
+    type: z.literal("event"),
+    name: eventName,
+    label: label.optional(),
+    path,
+    value: z.number().int().min(0).max(TIME_ON_PAGE_MAX_MS).optional(),
+  }),
   z.strictObject({
     project: z.enum(PROJECT_IDS),
     type: z.literal("error"),
@@ -41,6 +63,7 @@ const beaconSchema = z.discriminatedUnion("type", [
     cls: z.number().min(0).max(10).optional(),
     fcp: ms.optional(),
     ttfb: ms.optional(),
+    device: device.optional(),
   }),
 ]);
 
@@ -53,6 +76,9 @@ export type BeaconRow =
       label: string | null;
       path: string;
       referrer: string | null;
+      source: string | null;
+      device: "mobile" | "desktop" | null;
+      value: number | null;
     }
   | {
       table: "logs";
@@ -72,6 +98,7 @@ export type BeaconRow =
       cls: number | null;
       fcp: number | null;
       ttfb: number | null;
+      device: "mobile" | "desktop" | null;
     };
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
@@ -127,6 +154,7 @@ export function parseBeacon(body: string, origin: string | null): Parsed<BeaconR
         cls: data.cls ?? null,
         fcp: data.fcp ?? null,
         ttfb: data.ttfb ?? null,
+        device: data.device ?? null,
       },
     };
   }
@@ -144,6 +172,10 @@ export function parseBeacon(body: string, origin: string | null): Parsed<BeaconR
       },
     };
   }
+  // A measured value belongs to time_on_page only, and time_on_page always carries one
+  if (data.type === "event" && (data.value !== undefined) !== (data.name === "time_on_page")) {
+    return { ok: false, status: 400, error: "value: only time_on_page carries a value, and it must" };
+  }
   return {
     ok: true,
     value: {
@@ -154,6 +186,9 @@ export function parseBeacon(body: string, origin: string | null): Parsed<BeaconR
       label: data.type === "event" ? (data.label ?? null) : null,
       path: pagePath,
       referrer: data.type === "pageview" ? referrerHost(data.referrer) : null,
+      source: data.type === "pageview" ? cleanSource(data.source) : null,
+      device: data.type === "pageview" ? (data.device ?? null) : null,
+      value: data.type === "event" ? (data.value ?? null) : null,
     },
   };
 }
