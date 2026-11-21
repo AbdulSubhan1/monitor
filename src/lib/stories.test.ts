@@ -212,6 +212,7 @@ describe("merge (D2), ranking (D3) and selection", () => {
     const many = Array.from({ length: 10 }, (_, i) => facts({ id: `p${i}`, errors: 10 + i, views: 0 }));
     const s = buildStories(many, home);
     expect(storiesFor(s)).toHaveLength(T.maxStories);
+    expect(storiesFor(s).some((x) => x.id.startsWith("summary"))).toBe(true);
     const one = buildStories([facts({ id: "a", errors: 10, views: 25, eventsEver: 0, events48h: 0, eventsBefore48h: 0 })], page("a"));
     expect(storiesFor(one, "events").every((x) => x.tab === "events")).toBe(true);
     expect(tally(storiesFor(one))).toBe("1 problem · 1 to check · 1 update");

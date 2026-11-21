@@ -96,25 +96,22 @@
   var visibleSince = document.visibilityState === "visible" ? Date.now() : null;
   var visibleMs = 0;
   var timePath = null;
-  var timeSent = false;
   function pauseClock() {
     if (visibleSince !== null) visibleMs += Date.now() - visibleSince;
     visibleSince = null;
   }
+  // Sends the visible time since the last send. Each time the tab is hidden counts what came before; time after the
+  // visitor comes back is sent on the next hide. Under a second is not worth a row.
   function flushTime() {
     pauseClock();
-    if (!timeSent && timePath !== null && visibleMs > 0) {
-      timeSent = true;
-      var path = timePath;
-      var ms = Math.min(Math.round(visibleMs), 6 * 3600000);
-      if (off) return;
-      send({ type: "event", name: "time_on_page", path: path, value: ms });
+    if (timePath !== null && visibleMs >= 1000) {
+      send({ type: "event", name: "time_on_page", path: timePath, value: Math.min(Math.round(visibleMs), 6 * 3600000) });
       autoSent++;
     }
+    visibleMs = 0;
   }
   function startClock(path) {
     timePath = path;
-    timeSent = false;
     visibleMs = 0;
     visibleSince = document.visibilityState === "visible" ? Date.now() : null;
   }
@@ -332,13 +329,12 @@
     send(payload);
   }
 
-  // Hidden is the last moment a page is sure to get on mobile, so vitals and time on page go out then.
-  // Time on page is sent once per page view; time after the visitor comes back to the same tab is not added.
+  // Hidden is the last moment a page is sure to get on mobile, so vitals and time on page go out then
   addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") {
       sendVitals();
       flushTime();
-    } else if (!timeSent && visibleSince === null) {
+    } else if (visibleSince === null) {
       visibleSince = Date.now();
     }
   });

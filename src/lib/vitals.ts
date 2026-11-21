@@ -21,3 +21,29 @@ export function formatMetric(metric: Metric, value: number | null): string {
   if (metric === "cls") return value.toFixed(2);
   return value >= 1000 ? `${(value / 1000).toFixed(1)} s` : `${Math.round(value)} ms`;
 }
+
+// How much a p75 can be trusted: 20+ page loads give a verdict, 5–19 only an early hint (never "poor" in red),
+// under 5 no verdict at all
+export const VERDICT_SAMPLES = 20;
+export const HINT_SAMPLES = 5;
+export type Confidence = "verdict" | "hint" | "few";
+
+export function confidence(samples: number): Confidence {
+  return samples >= VERDICT_SAMPLES ? "verdict" : samples >= HINT_SAMPLES ? "hint" : "few";
+}
+
+// The rating to show: under 5 samples none; an early hint caps "poor" at "needs-work" colours
+export function shownRating(metric: Metric, value: number | null, samples: number): { rating: Rating; confidence: Confidence } {
+  const c = confidence(samples);
+  if (value === null || c === "few") return { rating: "none", confidence: c };
+  const r = rate(metric, value);
+  return { rating: c === "hint" && r === "poor" ? "needs-work" : r, confidence: c };
+}
+
+// Where a value sits on a good / needs work / poor scale drawn 40% / 24% / 36% wide (0–100)
+export function scalePosition(metric: Metric, value: number): number {
+  const { good, poor } = METRICS[metric];
+  if (value <= good) return (value / good) * 40;
+  if (value <= poor) return 40 + ((value - good) / (poor - good)) * 24;
+  return Math.min(99, 64 + ((value - poor) / (poor * 1.5)) * 36);
+}

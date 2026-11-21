@@ -1,7 +1,7 @@
 import type { MetricFacts, ProjectFacts } from "@/lib/facts";
 import { formatCount } from "@/lib/format";
 import { readableName } from "@/lib/names";
-import { RANGE_PHRASE, dayLabel, type Range } from "@/lib/range";
+import { RANGE_PHRASE, dayLabel, type Range, type RangeKey } from "@/lib/range";
 import { localDay } from "@/lib/time";
 import { formatMetric, METRICS, rate, type Metric } from "@/lib/vitals";
 
@@ -52,13 +52,24 @@ export const T = {
 
 const TONE_ORDER: Tone[] = ["red", "amber", "blue", "green", "gray"];
 
-export const TONE_TAG: Record<Tone, string> = {
+export const TONE_TAG: Record<Exclude<Tone, "blue">, string> = {
   red: "PROBLEM",
   amber: "CHECK THIS",
-  blue: "THIS WEEK",
   green: "GOOD NEWS",
   gray: "FYI",
 };
+
+// The blue tag names the range, so it is never "this week" on a 30-day page
+export const BLUE_TAG: Record<RangeKey, string> = {
+  "24h": "LAST 24 HOURS",
+  "7d": "LAST 7 DAYS",
+  "30d": "LAST 30 DAYS",
+  "12m": "LAST 12 MONTHS",
+};
+
+export function tagOf(tone: Tone, range: RangeKey): string {
+  return tone === "blue" ? BLUE_TAG[range] : TONE_TAG[tone];
+}
 
 // Metrics the dashboard shows as cards, in plain words
 export const STORY_METRICS: Metric[] = ["lcp", "inp", "cls", "ttfb"];
@@ -138,7 +149,7 @@ const siteDown: Rule = (f, { range }) => {
   return [];
 };
 
-const errorsSpiked: Rule = (f, { range }) => {
+const errorsSpiked: Rule = (f) => {
   if (f.errors < T.errorsMin || f.errors < T.errorsFactor * f.prevErrors) return [];
   return [
     {
@@ -440,7 +451,12 @@ export function buildStories(all: ProjectFacts[], ctx: StoryContext): Story[] {
 
 // What one slider shows: Overview (and Home) everything, other tabs their own stories; at most 7
 export function storiesFor(stories: Story[], tab: Tab = "overview"): Story[] {
-  return (tab === "overview" ? stories : stories.filter((s) => s.tab === tab)).slice(0, T.maxStories);
+  const list = tab === "overview" ? stories : stories.filter((s) => s.tab === tab);
+  const top = list.slice(0, T.maxStories);
+  // The range summary is always one of them, even when 7 problems come first
+  const summary = list.find((s) => s.id.startsWith("summary"));
+  if (summary && !top.includes(summary)) top[top.length - 1] = summary;
+  return rank(top);
 }
 
 // "2 problems · 2 to check · 3 updates"

@@ -554,12 +554,13 @@ export async function getEventGroups(range: Range, project: string) {
   return rangeKeys(range, "event", [project]);
 }
 
-// Latest page views and tagged events (automatic ones would drown the feed), newest first
+// Latest page views, tagged events, outside links and downloads, newest first (scrolling, sections and time would
+// drown the feed)
 export async function getFeed(project: string, limit = 30) {
   return db
     .select({ at: events.createdAt, type: events.type, name: events.name, label: events.label, path: events.path, source: events.source, referrer: events.referrer })
     .from(events)
-    .where(and(eq(events.project, project), sql`(${pageview} or ${tagged})`))
+    .where(and(eq(events.project, project), sql`(${pageview} or ${tagged} or ${events.name} in ('outbound_clicked', 'file_downloaded'))`))
     .orderBy(desc(events.createdAt))
     .limit(limit);
 }

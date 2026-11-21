@@ -27,11 +27,11 @@ export function recentHits(key: string, windowMs: number, now = Date.now()): num
 
 // --- Daily row caps -----------------------------------------------------------------------------------------------
 // Real traffic is far below these. Days are dashboard-timezone days (src/lib/time.ts).
-// Size estimate at the caps (~200 bytes a row with indexes): events 5,000/day/project kept 60 days, the rest 30 days,
-// all under the 30,000/day total: at most ~30,000 x 60 days x 200 B ≈ 360 MB in the worst case, real traffic a tiny
-// fraction. daily_stats adds one row per project, day and page/event/source/device (capped at 200 a day per project in
+// Size estimate at the caps (~200 bytes a row with indexes): events 3,000/day/project (9 projects: 27,000) kept 60 days,
+// the rest 30 days, all under the 30,000/day total: at most ~27,000 x 60 days x 200 B ≈ 320 MB for events in the
+// worst case, real traffic a tiny fraction. daily_stats adds one row per project, day and page/event/source/device (capped at 200 a day per project in
 // src/server/rollups.ts): 9 projects x 200 x 400 days x ~120 B ≈ 86 MB worst case, a few MB in practice.
-export const DAILY_CAPS = { events: 5_000, logs: 1_000, vitals: 2_000, api_calls: 5_000, security_events: 1_000 } as const;
+export const DAILY_CAPS = { events: 3_000, logs: 1_000, vitals: 2_000, api_calls: 5_000, security_events: 1_000 } as const;
 export const DAILY_TOTAL_CAP = 30_000;
 type Table = keyof typeof DAILY_CAPS;
 

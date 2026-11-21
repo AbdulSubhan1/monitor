@@ -19,3 +19,27 @@ export function toSlots(checks: Check[], now = Date.now()): Slot[] {
   }
   return slots;
 }
+
+export type UptimeBar = { key: string; ok: number; total: number; label: string } | null;
+
+// Uptime over a longer range: one bar per hour (7 days) or per day (30 days and more, the 30 days checks are kept).
+// A bar is the share of good checks in it; null where no check ran.
+export function uptimeBars(checks: Check[], unit: "hour" | "day", now = Date.now()): UptimeBar[] {
+  const size = unit === "hour" ? 3_600_000 : 86_400_000;
+  const count = unit === "hour" ? 168 : 30;
+  const end = Math.ceil(now / size) * size;
+  const start = end - count * size;
+  const bars: { ok: number; total: number }[] = Array.from({ length: count }, () => ({ ok: 0, total: 0 }));
+  for (const c of checks) {
+    const i = Math.floor((c.at.getTime() - start) / size);
+    if (i < 0 || i >= count) continue;
+    bars[i].total++;
+    if (c.ok) bars[i].ok++;
+  }
+  return bars.map((b, i) => {
+    if (!b.total) return null;
+    const at = new Date(start + i * size).toISOString();
+    const when = unit === "hour" ? `${at.slice(0, 10)} ${at.slice(11, 13)}:00 UTC` : at.slice(0, 10);
+    return { key: at, ok: b.ok, total: b.total, label: `${when} · ${b.ok} of ${b.total} checks good` };
+  });
+}
