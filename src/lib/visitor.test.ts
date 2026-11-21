@@ -4,18 +4,19 @@ import { cleanSource, isBot, visitorHash } from "@/lib/visitor";
 const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
 
 describe("visitorHash", () => {
-  it("is stable within a day and project, and changes across days, projects and secrets", () => {
-    const a = visitorHash("s", "2026-11-21", "brokwise", "1.2.3.4", CHROME);
+  it("is the same for the same browser and project on any day, and differs per project, address and secret", () => {
+    const a = visitorHash("s", "brokwise", "1.2.3.4", CHROME);
     expect(a).toHaveLength(16);
-    expect(visitorHash("s", "2026-11-21", "brokwise", "1.2.3.4", CHROME)).toBe(a);
-    expect(visitorHash("s", "2026-11-22", "brokwise", "1.2.3.4", CHROME)).not.toBe(a);
-    expect(visitorHash("s", "2026-11-21", "portfolio", "1.2.3.4", CHROME)).not.toBe(a);
-    expect(visitorHash("t", "2026-11-21", "brokwise", "1.2.3.4", CHROME)).not.toBe(a);
-    expect(visitorHash("s", "2026-11-21", "brokwise", "1.2.3.5", CHROME)).not.toBe(a);
+    // No day in the hash: a visit at 23:50 and one at 00:10, or next week, are the same visitor
+    expect(visitorHash("s", "brokwise", "1.2.3.4", CHROME)).toBe(a);
+    expect(visitorHash("s", "portfolio", "1.2.3.4", CHROME)).not.toBe(a);
+    expect(visitorHash("t", "brokwise", "1.2.3.4", CHROME)).not.toBe(a);
+    expect(visitorHash("s", "brokwise", "1.2.3.5", CHROME)).not.toBe(a);
+    expect(visitorHash("s", "brokwise", "1.2.3.4", CHROME.replace("131", "132"))).not.toBe(a);
   });
 
   it("never contains the raw address", () => {
-    expect(visitorHash("s", "2026-11-21", "brokwise", "1.2.3.4", CHROME)).not.toContain("1.2.3.4");
+    expect(visitorHash("s", "brokwise", "1.2.3.4", CHROME)).not.toContain("1.2.3.4");
   });
 });
 

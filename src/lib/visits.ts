@@ -106,6 +106,20 @@ export function topKey(counts: Map<string, number>): string | null {
   return best;
 }
 
+// Visitors with a visit in the range who also had an earlier visit in the rows given (inside the range or before it)
+export function returningVisitors(visits: Visit[], rangeStart: Date): number {
+  const byVisitor = new Map<string, { inRange: boolean; count: number }>();
+  for (const v of visits) {
+    const e = byVisitor.get(v.visitor) ?? { inRange: false, count: 0 };
+    e.count++;
+    if (v.start >= rangeStart) e.inRange = true;
+    byVisitor.set(v.visitor, e);
+  }
+  let n = 0;
+  for (const e of byVisitor.values()) if (e.inRange && e.count >= 2) n++;
+  return n;
+}
+
 // Average visit length: the visible time of every page in a visit added up, over visits that reported any time
 export function averageVisitMs(visits: Visit[]): number | null {
   const timed = visits.filter((v) => v.hasTime);

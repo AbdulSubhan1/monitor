@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { toSlides } from "@/components/insight";
 import { hrefWith, RangePicker } from "@/components/range-picker";
 import { StorySlider } from "@/components/story-slider";
+import { TimezoneControl, viewerTz } from "@/components/timezone";
 import { EventsTab } from "@/components/tabs/events";
 import { OverviewTab } from "@/components/tabs/overview";
 import { parseDevice, PerformanceTab } from "@/components/tabs/performance";
@@ -43,7 +44,8 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   if (!project) notFound();
   await connection();
   const sp = await searchParams;
-  const range = resolveRange(parseRange(sp.range));
+  const { tz, hasCookie } = await viewerTz(sp.tz);
+  const range = resolveRange(parseRange(sp.range), new Date(), tz);
   const tab = parseTab(sp.tab);
   const keep = { range: range.key, tab, sort: one(sp.sort), device: one(sp.device) };
   const base = `/projects/${id}`;
@@ -74,7 +76,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
         </div>
         <RangePicker current={range.key} path={base} params={keep} />
       </div>
-      <p className="-mt-2 text-sm text-muted">{range.words} · every number below uses this range</p>
+      <p className="-mt-2 text-sm text-muted">
+        {range.words} · every number below uses this range · <TimezoneControl tz={tz} hasCookie={hasCookie} back={hrefWith(base, keep, {})} />
+      </p>
 
       {/* Wraps on small screens instead of scrolling sideways */}
       <nav aria-label="Project sections" className="flex flex-wrap gap-x-7 border-b border-line">

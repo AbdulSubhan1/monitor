@@ -1,6 +1,5 @@
 import { db, schema } from "@/server/db";
 import { parseBeacon } from "@/lib/ingest";
-import { localDay } from "@/lib/time";
 import { isBot, visitorHash, visitorSecret } from "@/lib/visitor";
 import { clientIp, rateLimited, withinDailyCap } from "@/server/guard";
 
@@ -27,7 +26,7 @@ export async function POST(request: Request) {
   if (await withinDailyCap(capTable, row.project)) {
     if (table === "events") {
       // Raw IP and user agent are only hashed, never stored
-      const visitor = visitorHash(visitorSecret(), localDay(new Date()), row.project, ip, userAgent!);
+      const visitor = visitorHash(visitorSecret(), row.project, ip, userAgent!);
       await db.insert(schema.events).values({ ...(row as typeof schema.events.$inferInsert), visitor });
     } else if (table === "vitals") {
       await db.insert(schema.vitals).values(row as typeof schema.vitals.$inferInsert);

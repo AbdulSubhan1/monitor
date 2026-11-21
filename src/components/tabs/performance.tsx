@@ -3,6 +3,7 @@ import { Card, Empty, Hint, LoadFailed, MetricCard, MetricValue } from "@/compon
 import { hrefWith } from "@/components/range-picker";
 import { formatCount } from "@/lib/format";
 import { dayLabel, type Range } from "@/lib/range";
+import { localDay, localHour } from "@/lib/time";
 import { PLAIN_METRIC, STORY_METRICS } from "@/lib/stories";
 import { formatMetric, METRICS, rate, type Metric } from "@/lib/vitals";
 import { emptyVitals, getVitalsPages, getVitalsTrend, vitalsFacts, type Device } from "@/server/insights";
@@ -130,7 +131,8 @@ function Trend({ rows, range, deploys }: { rows: TrendRow[]; range: Range; deplo
   const first = keys[0];
   const last = keys[keys.length - 1];
   const label = (k: string) => (k.length > 10 ? `${dayLabel(k.slice(0, 10))} ${k.slice(11)}:00` : dayLabel(k));
-  const bucketOfDate = (at: Date) => (range.unit === "hour" ? at.toISOString().slice(0, 13).replace("T", "T") : at.toISOString().slice(0, 10));
+  const bucketOfDate = (at: Date) =>
+    range.unit === "hour" ? `${localDay(at, range.tz)}T${String(localHour(at, range.tz)).padStart(2, "0")}` : localDay(at, range.tz);
   const marks = deploys.map((dpl) => ({ ...dpl, i: keys.indexOf(bucketOfDate(dpl.at)) })).filter((m) => m.i >= 0);
   return (
     <div className="flex flex-col gap-4">

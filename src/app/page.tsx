@@ -4,6 +4,7 @@ import { MiniBars, toSlides } from "@/components/insight";
 import { RangePicker } from "@/components/range-picker";
 import { StatusPill } from "@/components/status";
 import { StorySlider } from "@/components/story-slider";
+import { TimezoneControl, viewerTz } from "@/components/timezone";
 import type { ProjectFacts } from "@/lib/facts";
 import { formatCount } from "@/lib/format";
 import { findProject, PROJECTS } from "@/lib/projects";
@@ -15,7 +16,8 @@ import { getSecurity } from "@/server/queries";
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   await connection();
   const params = await searchParams;
-  const range = resolveRange(parseRange(params.range));
+  const { tz, hasCookie } = await viewerTz(params.tz);
+  const range = resolveRange(parseRange(params.range), new Date(), tz);
   const path = "/";
   const keep = { range: range.key };
 
@@ -41,7 +43,10 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                   ? `All ${PROJECTS.length} projects are up`
                   : `${down.map((p) => p.name).join(", ")} ${down.length === 1 ? "is" : "are"} down`}
           </h1>
-          <p className="mt-1.5 text-sm text-muted">{range.words} · every number below uses this range</p>
+          <p className="mt-1.5 text-sm text-muted">
+            {range.words} · every number below uses this range ·{" "}
+            <TimezoneControl tz={tz} hasCookie={hasCookie} back={range.key === "7d" ? "/" : `/?range=${range.key}`} />
+          </p>
         </div>
         <RangePicker current={range.key} path={path} params={keep} />
       </div>

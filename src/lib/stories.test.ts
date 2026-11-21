@@ -26,6 +26,7 @@ function facts(over: Partial<ProjectFacts> & { id: string }): ProjectFacts {
     prevViews: 30,
     visitors: 10,
     prevVisitors: 10,
+    returning: 0,
     events: 5,
     prevEvents: 5,
     buckets: [],
@@ -174,6 +175,11 @@ describe("rules (D1)", () => {
     expect(find(buildStories([facts({ id: "a", views: 0 })], page("a")), "no-visitors")?.tone).toBe("gray");
     expect(find(buildStories([facts({ id: "a", views: 0, dataStart: null })], page("a")), "waiting")?.title).toBe("A is waiting for the first visit");
     expect(find(buildStories([facts({ id: "a", views: 0, status: { downNow: true, checks: 1, failed: 1, failed24h: 1, uptime: 0, avgMs: null } })], page("a")), "no-visitors")).toBeUndefined();
+  });
+
+  it("mentions returning visitors in the summary from 5 visitors", () => {
+    expect(find(buildStories([facts({ id: "a", visitors: 12, returning: 4 })], page("a")), "summary")?.line).toContain("12 visitors, 4 returning.");
+    expect(find(buildStories([facts({ id: "a", visitors: 4, returning: 2 })], page("a")), "summary")?.line).not.toContain("returning");
   });
 
   it("always has one range summary, noting when data starts inside the range", () => {

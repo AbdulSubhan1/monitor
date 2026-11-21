@@ -25,8 +25,11 @@ export type ProjectFacts = {
   };
   views: number;
   prevViews: number;
+  // Distinct visitors (one browser on one device) in the range; on 12 months added up by month
   visitors: number;
   prevVisitors: number;
+  // Visitors in the range with an earlier visit in the last 60 days kept
+  returning: number;
   // Tagged events only (data-pulse-event and pulse.track); automatic events are never counted here
   events: number;
   prevEvents: number;

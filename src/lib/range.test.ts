@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseRange, resolveRange } from "@/lib/range";
 
 // 21 Nov 2026 14:30 in Karachi (UTC+5)
+const TZ = "Asia/Karachi";
 const NOW = new Date("2026-11-21T09:30:00Z");
 
 describe("parseRange", () => {
@@ -15,7 +16,7 @@ describe("parseRange", () => {
 
 describe("resolveRange", () => {
   it("24h: 24 hourly buckets ending with the current hour, and the 24 hours before", () => {
-    const r = resolveRange("24h", NOW);
+    const r = resolveRange("24h", NOW, TZ);
     expect(r.unit).toBe("hour");
     expect(r.buckets).toHaveLength(24);
     expect(r.buckets[23].key).toBe("2026-11-21T14");
@@ -25,7 +26,7 @@ describe("resolveRange", () => {
   });
 
   it("7d: local days, today included, previous week of equal length", () => {
-    const r = resolveRange("7d", NOW);
+    const r = resolveRange("7d", NOW, TZ);
     expect(r.buckets.map((b) => b.key)).toEqual([
       "2026-11-15",
       "2026-11-16",
@@ -43,12 +44,20 @@ describe("resolveRange", () => {
 
   it("uses the local day near midnight, not the UTC one", () => {
     // 22 Nov 00:30 in Karachi, still 21 Nov in UTC
-    const r = resolveRange("7d", new Date("2026-11-21T19:30:00Z"));
+    const r = resolveRange("7d", new Date("2026-11-21T19:30:00Z"), TZ);
     expect(r.buckets[6].key).toBe("2026-11-22");
   });
 
+  it("uses the viewer's timezone: the same instant is another day in UTC", () => {
+    const late = new Date("2026-11-21T19:30:00Z");
+    expect(resolveRange("7d", late, TZ).buckets[6].key).toBe("2026-11-22");
+    expect(resolveRange("7d", late, "UTC").buckets[6].key).toBe("2026-11-21");
+    expect(resolveRange("7d", late, "UTC").start.toISOString()).toBe("2026-11-15T00:00:00.000Z");
+    expect(resolveRange("24h", late, "UTC").buckets[23].key).toBe("2026-11-21T19");
+  });
+
   it("30d crosses months in its words", () => {
-    const r = resolveRange("30d", NOW);
+    const r = resolveRange("30d", NOW, TZ);
     expect(r.buckets).toHaveLength(30);
     expect(r.buckets[0].key).toBe("2026-10-23");
     expect(r.words).toBe("Last 30 days · 23 Oct–21 Nov");
@@ -56,7 +65,7 @@ describe("resolveRange", () => {
   });
 
   it("12m: 12 months including this one, and the 12 before", () => {
-    const r = resolveRange("12m", NOW);
+    const r = resolveRange("12m", NOW, TZ);
     expect(r.buckets[0].key).toBe("2025-12");
     expect(r.buckets[11].key).toBe("2026-11");
     expect(r.start.toISOString()).toBe("2025-11-30T19:00:00.000Z");

@@ -124,12 +124,14 @@ export const securityEvents = pgTable(
 //   event  key name, label  tagged and automatic events (value_sum: time_on_page ms)
 //   source key source/host  page views and visitors per source ("" = unknown)
 //   device key mobile/desktop
+//   month  key "", day = first day of a UTC month: distinct visitors of that month (daily rows can't be added up
+//          into people). Counts only: visitor hashes never leave the raw events table.
 export const dailyStats = pgTable(
   "daily_stats",
   {
     project: text().notNull(),
     day: date({ mode: "string" }).notNull(),
-    kind: text({ enum: ["total", "page", "event", "source", "device"] }).notNull(),
+    kind: text({ enum: ["total", "page", "event", "source", "device", "month"] }).notNull(),
     key: text().notNull(),
     label: text().notNull().default(""),
     views: integer().notNull().default(0),

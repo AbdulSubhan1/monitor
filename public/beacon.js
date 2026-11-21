@@ -96,6 +96,8 @@
   var visibleSince = document.visibilityState === "visible" ? Date.now() : null;
   var visibleMs = 0;
   var timePath = null;
+  // At most 5 sends per page view (a visitor switching tabs all day), always kept even past the 40 automatic events
+  var timeSends = 0;
   function pauseClock() {
     if (visibleSince !== null) visibleMs += Date.now() - visibleSince;
     visibleSince = null;
@@ -104,7 +106,8 @@
   // visitor comes back is sent on the next hide. Under a second is not worth a row.
   function flushTime() {
     pauseClock();
-    if (timePath !== null && visibleMs >= 1000) {
+    if (timePath !== null && visibleMs >= 1000 && timeSends < 5) {
+      timeSends++;
       send({ type: "event", name: "time_on_page", path: timePath, value: Math.min(Math.round(visibleMs), 6 * 3600000) });
       autoSent++;
     }
@@ -112,6 +115,7 @@
   }
   function startClock(path) {
     timePath = path;
+    timeSends = 0;
     visibleMs = 0;
     visibleSince = document.visibilityState === "visible" ? Date.now() : null;
   }

@@ -5,13 +5,14 @@ import type { MetricFacts, ProjectFacts } from "@/lib/facts";
 import { AUTO_EVENTS } from "@/lib/ingest";
 import { findProject, PROJECTS, type Project } from "@/lib/projects";
 import { bucketFormat, dayLabel, monthLabel, type BucketUnit, type Range } from "@/lib/range";
-import { DASHBOARD_TZ, localDay, startOfLocalDay } from "@/lib/time";
+import { localDay, startOfUtcDay } from "@/lib/time";
 import { METRICS, type Metric } from "@/lib/vitals";
-import { buildVisits, commonPaths, entriesAndExits, topKey, averageVisitMs, type Visit, type VisitRow } from "@/lib/visits";
+import { averageVisitMs, buildVisits, commonPaths, entriesAndExits, returningVisitors, topKey, type Visit, type VisitRow } from "@/lib/visits";
 import { db, schema } from "@/server/db";
 
-// Range queries for the dashboard. Grouped per project (never one query per project). 24h / 7d / 30d read raw rows;
-// 12 months reads the daily rollups for completed days plus raw rows for today.
+// Range queries for the dashboard. Grouped per project (never one query per project). 24h / 7d / 30d read raw rows,
+// bucketed in the viewer's timezone. 12 months reads the UTC-day rollups for completed days plus raw rows for today
+// (UTC), grouped into months; at month edges that can drift by the viewer's UTC offset.
 
 const { events, checks, logs, vitals, apiCalls, dailyStats } = schema;
 const HOUR = 3_600_000;
@@ -19,10 +20,10 @@ const DAY = 24 * HOUR;
 export const RAW_DAYS = 60;
 export const SHORT_DAYS = 30;
 
-const TZ = sql.raw(`'${DASHBOARD_TZ}'`);
-const bucketOf = (col: AnyPgColumn, unit: BucketUnit) =>
-  sql<string>`to_char(${col} at time zone ${TZ}, ${sql.raw(`'${bucketFormat(unit)}'`)})`;
-const dayOf = (col: AnyPgColumn) => sql<string>`to_char(${col} at time zone ${TZ}, 'YYYY-MM-DD')`;
+const bucketOf = (col: AnyPgColumn, unit: BucketUnit, tz: string) =>
+  sql<string>`to_char(${col} at time zone ${tz}, ${sql.raw(`'${bucketFormat(unit)}'`)})`;
+const dayOf = (col: AnyPgColumn, tz: string) => sql<string>`to_char(${col} at time zone ${tz}, 'YYYY-MM-DD')`;
+const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 const AUTO_LIST = sql.raw(AUTO_EVENTS.map((n) => `'${n}'`).join(", "));
 const tagged = sql`(${events.type} = 'event' and ${events.name} not in (${AUTO_LIST}))`;
 const pageview = sql`(${events.type} = 'pageview')`;
@@ -33,9 +34,9 @@ function forProjects(col: AnyPgColumn, ids?: string[]): SQL | undefined {
   return ids ? inArray(col, ids) : undefined;
 }
 
-// 12 months: rollups hold completed days, raw rows hold today
+// 12 months: rollups hold completed UTC days, raw rows hold today (UTC)
 function rawFrom(range: Range): Date {
-  return range.key === "12m" ? startOfLocalDay(range.end) : range.prevStart;
+  return range.key === "12m" ? startOfUtcDay(range.end) : range.prevStart;
 }
 const usesRollups = (range: Range) => range.key === "12m";
 // Raw events are kept 60 days, checks, vitals and API calls 30: a range can only read what is kept
@@ -65,9 +66,12 @@ async function trafficBuckets(range: Range, ids?: string[]): Promise<BucketRow[]
   const raw = db
     .select({
       project: events.project,
-      bucket: bucketOf(events.createdAt, range.unit),
+      bucket: bucketOf(events.createdAt, range.unit, range.tz),
       views: sql<number>`count(*) filter (where ${pageview})`.mapWith(Number),
-      visitors: sql<number>`count(distinct ${events.visitor}) filter (where ${pageview})`.mapWith(Number),
+      // On 12 months visitors come per month (below), not from today's rows
+      visitors: usesRollups(range)
+        ? sql<number>`0`.mapWith(Number)
+        : sql<number>`count(distinct ${events.visitor}) filter (where ${pageview})`.mapWith(Number),
       events: sql<number>`count(*) filter (where ${tagged})`.mapWith(Number),
     })
     .from(events)
@@ -79,25 +83,41 @@ async function trafficBuckets(range: Range, ids?: string[]): Promise<BucketRow[]
     .select({
       project: dailyStats.project,
       bucket: month,
-      views: sql<number>`sum(${dailyStats.views})`.mapWith(Number),
-      visitors: sql<number>`sum(${dailyStats.visitors})`.mapWith(Number),
-      events: sql<number>`sum(${dailyStats.events})`.mapWith(Number),
+      views: sql<number>`coalesce(sum(${dailyStats.views}) filter (where ${dailyStats.kind} = 'total'), 0)`.mapWith(Number),
+      visitors: sql<number>`coalesce(sum(${dailyStats.visitors}) filter (where ${dailyStats.kind} = 'month'), 0)`.mapWith(Number),
+      events: sql<number>`coalesce(sum(${dailyStats.events}) filter (where ${dailyStats.kind} = 'total'), 0)`.mapWith(Number),
     })
     .from(dailyStats)
     .where(
       and(
-        eq(dailyStats.kind, "total"),
-        gte(dailyStats.day, localDay(range.prevStart)),
-        lt(dailyStats.day, localDay(range.end)),
+        inArray(dailyStats.kind, ["total", "month"]),
+        gte(dailyStats.day, `${utcDay(range.prevStart).slice(0, 8)}01`),
+        lt(dailyStats.day, utcDay(range.end)),
         forProjects(dailyStats.project, ids),
       ),
     )
     .groupBy(dailyStats.project, sql`2`);
-  const [a, b] = await Promise.all([raw, rolled]);
-  return [...a, ...b];
+  // The month in progress has no month row yet: its people come from the raw rows (always within the 60 days kept)
+  const monthStart = new Date(Date.UTC(range.end.getUTCFullYear(), range.end.getUTCMonth(), 1));
+  const monthKey = utcDay(monthStart).slice(0, 7);
+  const current = db
+    .select({
+      project: events.project,
+      visitors: sql<number>`count(distinct ${events.visitor}) filter (where ${pageview})`.mapWith(Number),
+    })
+    .from(events)
+    .where(and(gte(events.createdAt, monthStart), forProjects(events.project, ids)))
+    .groupBy(events.project);
+  const [a, b, c] = await Promise.all([raw, rolled, current]);
+  return [
+    ...a,
+    // A month row for the current month would be partial; the raw count below replaces it
+    ...b.map((r) => (r.bucket === monthKey ? { ...r, visitors: 0 } : r)),
+    ...c.map((r) => ({ project: r.project, bucket: monthKey, views: 0, visitors: r.visitors, events: 0 })),
+  ];
 }
 
-// Distinct daily visitors over the whole range (hour buckets can't be added up: one person spans several hours)
+// Distinct visitors over the whole range: one person in several buckets counts once
 async function visitorTotals(range: Range, ids?: string[]) {
   return db
     .select({
@@ -110,13 +130,13 @@ async function visitorTotals(range: Range, ids?: string[]) {
     .groupBy(events.project);
 }
 
-async function firsts(ids?: string[]) {
+async function firsts(tz: string, ids?: string[]) {
   const [raw, rolled] = await Promise.all([
     db
       .select({
         project: events.project,
-        first: sql<string | null>`min(${dayOf(events.createdAt)})`,
-        firstVisitor: sql<string | null>`min(${dayOf(events.createdAt)}) filter (where ${events.visitor} is not null)`,
+        first: sql<string | null>`min(${dayOf(events.createdAt, tz)})`,
+        firstVisitor: sql<string | null>`min(${dayOf(events.createdAt, tz)}) filter (where ${events.visitor} is not null)`,
       })
       .from(events)
       .where(forProjects(events.project, ids))
@@ -144,7 +164,7 @@ async function firsts(ids?: string[]) {
 type KeyRow = { project: string; key: string; label: string; views: number; visitors: number; events: number; valueSum: number };
 
 async function rangeKeys(range: Range, kind: "page" | "source" | "event", ids?: string[]): Promise<KeyRow[]> {
-  const from = usesRollups(range) ? startOfLocalDay(range.end) : range.start;
+  const from = usesRollups(range) ? startOfUtcDay(range.end) : range.start;
   const keyExpr =
     kind === "page"
       ? sql<string>`${events.path}`
@@ -186,8 +206,8 @@ async function rangeKeys(range: Range, kind: "page" | "source" | "event", ids?: 
     .where(
       and(
         eq(dailyStats.kind, kind),
-        gte(dailyStats.day, localDay(range.start)),
-        lt(dailyStats.day, localDay(range.end)),
+        gte(dailyStats.day, utcDay(range.start)),
+        lt(dailyStats.day, utcDay(range.end)),
         forProjects(dailyStats.project, ids),
       ),
     )
@@ -349,17 +369,20 @@ async function apiFacts(range: Range, ids?: string[]) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Visits (computed from raw rows; on 12 months the last 60 days)
+// Visits (computed from raw rows; on 12 months the last 60 days). All 60 days kept are read so a visitor's earlier
+// visit, even before the range, makes them "returning".
 
 const VISIT_ROWS_MAX = 50_000;
 
-export async function getVisits(range: Range, ids?: string[]): Promise<Map<string, Visit[]>> {
+export type VisitData = { visits: Visit[]; returning: number };
+
+export async function getVisits(range: Range, ids?: string[]): Promise<Map<string, VisitData>> {
   const rows = await db
     .select({ project: events.project, visitor: events.visitor, at: events.createdAt, type: events.type, name: events.name, path: events.path, label: events.label, value: events.value })
     .from(events)
     .where(
       and(
-        gte(events.createdAt, visitsStart(range)),
+        gte(events.createdAt, new Date(range.end.getTime() - RAW_DAYS * DAY)),
         sql`${events.visitor} is not null`,
         sql`(${pageview} or ${events.name} in ('section_viewed', 'time_on_page'))`,
         forProjects(events.project, ids),
@@ -379,7 +402,13 @@ export async function getVisits(range: Range, ids?: string[]): Promise<Map<strin
     });
     byProject.set(r.project, list);
   }
-  return new Map([...byProject].map(([p, list]) => [p, buildVisits(list)]));
+  const from = visitsStart(range);
+  return new Map(
+    [...byProject].map(([p, list]) => {
+      const all = buildVisits(list);
+      return [p, { visits: all.filter((v) => v.start >= from), returning: returningVisitors(all, from) }];
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -392,7 +421,7 @@ async function busiest(range: Range, ids?: string[]) {
   const unit: BucketUnit = range.unit === "hour" ? "hour" : "day";
   const [raw, rolled] = await Promise.all([
     db
-      .select({ project: events.project, bucket: bucketOf(events.createdAt, unit), views: count })
+      .select({ project: events.project, bucket: bucketOf(events.createdAt, unit, range.tz), views: count })
       .from(events)
       .where(and(eq(events.type, "pageview"), forProjects(events.project, ids)))
       .groupBy(events.project, sql`2`),
@@ -432,7 +461,7 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
   const [buckets, totals, first, sources, pages, eventKeys, recent, checkF, errors, vit, api, visits, best, regs] = await Promise.all([
     trafficBuckets(range, ids),
     usesRollups(range) ? Promise.resolve([]) : visitorTotals(range, ids),
-    firsts(ids),
+    firsts(range.tz, ids),
     rangeKeys(range, "source", ids),
     rangeKeys(range, "page", ids),
     rangeKeys(range, "event", ids),
@@ -475,7 +504,8 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
       if (target) outbound.set(target, (outbound.get(target) ?? 0) + e.events);
     }
 
-    const v = visits.get(p.id) ?? [];
+    const vd = visits.get(p.id);
+    const v = vd?.visits ?? [];
     const { bySections, paths } = commonPaths(v, 1);
     const topExit = topKey(entriesAndExits(v).exits);
     const top = paths[0];
@@ -483,7 +513,7 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
     const b = best.get(p.id);
     const dataDays = f?.first ? Math.round((range.end.getTime() - new Date(`${f.first}T00:00:00Z`).getTime()) / DAY) : 0;
     const recordKey = b?.key ?? "";
-    const inRange = range.unit === "hour" ? recordKey >= firstBucket : recordKey >= localDay(range.start);
+    const inRange = range.unit === "hour" ? recordKey >= firstBucket : recordKey >= localDay(range.start, range.tz);
     const record =
       b && b.views >= RECORD_MIN_VIEWS && b.views > b.previousBest && dataDays >= RECORD_MIN_DAYS && inRange
         ? { key: recordKey, label: range.unit === "hour" ? `${dayLabel(recordKey.slice(0, 10))} ${recordKey.slice(11)}:00` : dayLabel(recordKey), views: b.views }
@@ -509,6 +539,7 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
       prevViews: sum(prev, "views"),
       visitors: t ? t.cur : sum(cur, "visitors"),
       prevVisitors: t ? t.prev : sum(prev, "visitors"),
+      returning: vd?.returning ?? 0,
       events: sum(cur, "events"),
       prevEvents: sum(prev, "events"),
       buckets: range.buckets.map((bk) => {
@@ -540,14 +571,15 @@ export async function getFacts(range: Range, ids?: string[], regressions?: Regre
 
 export async function getPages(range: Range, project: string) {
   const [rows, visits] = await Promise.all([rangeKeys(range, "page", [project]), getVisits(range, [project])]);
-  const v = visits.get(project) ?? [];
+  const v = visits.get(project)?.visits ?? [];
   const { exits } = entriesAndExits(v);
   return { rows: rows.map((r) => ({ path: r.key, views: r.views, visitors: r.visitors, exits: exits.get(r.key) ?? 0 })), visits: v };
 }
 
 export async function getVisitSummary(range: Range, project: string) {
-  const v = (await getVisits(range, [project])).get(project) ?? [];
-  return { visits: v.length, avgMs: averageVisitMs(v), paths: commonPaths(v), exits: entriesAndExits(v).exits };
+  const data = (await getVisits(range, [project])).get(project);
+  const v = data?.visits ?? [];
+  return { visits: v.length, returning: data?.returning ?? 0, avgMs: averageVisitMs(v), paths: commonPaths(v), exits: entriesAndExits(v).exits };
 }
 
 export async function getEventGroups(range: Range, project: string) {
@@ -588,7 +620,7 @@ export async function getVitalsPages(range: Range, project: string, device?: Dev
 export async function getVitalsTrend(range: Range, project: string, device?: Device) {
   const unit: BucketUnit = range.unit === "hour" ? "hour" : "day";
   const all = sql`true`;
-  const select: Record<string, SQL | SQL.Aliased> = { bucket: bucketOf(vitals.createdAt, unit) };
+  const select: Record<string, SQL | SQL.Aliased> = { bucket: bucketOf(vitals.createdAt, unit, range.tz) };
   for (const m of METRIC_KEYS) {
     select[m] = p75(metricCol(m), all);
     select[`${m}N`] = sql<number>`count(${metricCol(m)})`.mapWith(Number);

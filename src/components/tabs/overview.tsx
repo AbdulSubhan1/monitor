@@ -18,10 +18,12 @@ export function formatDuration(ms: number | null): string {
   return m < 60 ? `${m} min ${s % 60 ? `${s % 60} s` : ""}`.trim() : `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 
-export function visitorsMeaning(f: ProjectFacts, range: Range): string {
-  if (!f.visitorsSince) return "Different people. Starts after the update.";
-  const since = f.visitorsSince > localDay(range.start) ? ` Counted since ${dayLabel(f.visitorsSince)}.` : "";
-  return `Different people. One person counts once a day, however many pages they open.${since}`;
+export function visitorsMeaning(f: ProjectFacts, range: Range, returning: number | null): string {
+  if (!f.visitorsSince) return "One browser on one device. Starts after the update.";
+  const since = f.visitorsSince > localDay(range.start, range.tz) ? ` Counted since ${dayLabel(f.visitorsSince)}.` : "";
+  const back = returning ? ` ${formatCount(returning)} returning (seen on an earlier visit in the last 60 days).` : "";
+  const how = range.key === "12m" ? "Added up by month: one browser counts once per month it came." : "One browser on one device, counted once however many pages or days.";
+  return `${how}${back}${since}`;
 }
 
 // "Unknown" said in words, the ?ref= tag or referring site otherwise
@@ -43,7 +45,11 @@ export async function OverviewTab({ f, range, deploy }: { f: ProjectFacts; range
   return (
     <div className="flex flex-col gap-5">
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Visitors" value={f.visitorsSince ? `${f.visitors > 0 && f.visitors < 10 ? "~" : ""}${formatCount(f.visitors)}` : "—"} meaning={visitorsMeaning(f, range)} />
+        <StatCard
+          label={range.key === "12m" ? "Visitors (added up by month)" : "Visitors"}
+          value={f.visitorsSince ? formatCount(f.visitors) : "—"}
+          meaning={visitorsMeaning(f, range, f.returning)}
+        />
         <StatCard label="Page views" value={formatCount(f.views)} meaning="Every page opened, refreshes too. Always higher than visitors." />
         <StatCard
           label="Events"

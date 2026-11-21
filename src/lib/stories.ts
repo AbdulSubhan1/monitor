@@ -47,6 +47,7 @@ export const T = {
   topPageMinViews: 10,
   topPathMinVisits: 2,
   topActionMin: 3,
+  returningMin: 5,
   maxStories: 7,
 } as const;
 
@@ -201,7 +202,7 @@ const vitalsRules: Rule = (f, { range }) => {
       rule: `vitals-regressed-${g.metric}`,
       key: `${g.metric}-${g.commit ?? g.at.getTime()}`,
       tone: "red",
-      title: `${METRICS[g.metric].name} got worse after ${g.commit ? `deploy ${g.commit}` : "a deploy"} on ${dayLabel(localDay(g.at))}`,
+      title: `${METRICS[g.metric].name} got worse after ${g.commit ? `deploy ${g.commit}` : "a deploy"} on ${dayLabel(localDay(g.at, range.tz))}`,
       line: `${f.name}: ${PLAIN_METRIC[g.metric].toLowerCase()} went from ${formatMetric(g.metric, g.before)} to ${formatMetric(g.metric, g.after)} in the week after.`,
       link: "See the trend",
       href: projectHref(f.id, "performance", range, "trend"),
@@ -323,12 +324,20 @@ function dataStartsNote(facts: ProjectFacts[], range: Range): string {
   const starts = facts.map((f) => f.dataStart).filter((d): d is string => !!d);
   if (!starts.length) return "";
   const first = starts.sort()[0];
-  return first > localDay(range.start) ? ` Data starts ${dayLabel(first)}.` : "";
+  return first > localDay(range.start, range.tz) ? ` Data starts ${dayLabel(first)}.` : "";
+}
+
+// "12 visitors, 4 returning." once there are enough visitors for it to mean something
+function visitorsText(visitors: number, returning: number): string {
+  if (!visitors) return "";
+  return `${plural(visitors, "visitor")}${visitors >= T.returningMin && returning ? `, ${formatCount(returning)} returning` : ""}. `;
 }
 
 function homeSummary(facts: ProjectFacts[], range: Range): Draft {
   const views = facts.reduce((s, f) => s + f.views, 0);
+  // A person who opened two of the sites counts on each
   const visitors = facts.reduce((s, f) => s + f.visitors, 0);
+  const returning = facts.reduce((s, f) => s + f.returning, 0);
   const busy = facts.filter((f) => f.views > 0).sort((a, b) => b.views - a.views);
   const sites = busy.length;
   const top = busy.slice(0, 3).map((f) => f.name);
@@ -337,7 +346,7 @@ function homeSummary(facts: ProjectFacts[], range: Range): Draft {
     tone: "blue",
     title: views ? `${plural(views, "page")} opened on ${plural(sites, "site")}` : `No page views ${RANGE_PHRASE[range.key]}`,
     line: views
-      ? `${visitors ? `${plural(visitors, "visitor")}. ` : ""}${top.length > 1 ? `${names(top)} got the most.` : `All on ${top[0]}.`}${dataStartsNote(facts, range)}`
+      ? `${visitorsText(visitors, returning)}${top.length > 1 ? `${names(top)} got the most.` : `All on ${top[0]}.`}${dataStartsNote(facts, range)}`
       : `All projects are checked every 10 minutes; no visits arrived.${dataStartsNote(facts, range)}`,
     link: busy[0] ? "Open the busiest project" : "How Pulse counts",
     href: busy[0] ? projectHref(busy[0].id, "overview", range) : "/guide",
@@ -347,13 +356,13 @@ function homeSummary(facts: ProjectFacts[], range: Range): Draft {
 }
 
 function projectSummary(f: ProjectFacts, range: Range): Draft {
-  const visitorsText = f.visitorsSince ? `${f.visitors === 1 ? "1 person" : `About ${formatCount(f.visitors)} people`}` : "Visitors";
+  const who = f.visitorsSince ? `${f.visitors === 1 ? "1 person" : `About ${formatCount(f.visitors)} people`}` : "Visitors";
   return {
     rule: "summary",
     tone: "blue",
-    title: f.views ? `${visitorsText} opened ${plural(f.views, "page")}` : `No page views ${RANGE_PHRASE[range.key]}`,
+    title: f.views ? `${who} opened ${plural(f.views, "page")}` : `No page views ${RANGE_PHRASE[range.key]}`,
     line: f.views
-      ? `${f.topPage ? `Busiest page: ${f.topPage.path} (${plural(f.topPage.views, "view")}).` : ""} ${plural(f.events, "event")} from tagged buttons and forms.${dataStartsNote([f], range)}`.trim()
+      ? `${visitorsText(f.visitorsSince ? f.visitors : 0, f.returning)}${f.topPage ? `Busiest page: ${f.topPage.path} (${plural(f.topPage.views, "view")}).` : ""} ${plural(f.events, "event")} from tagged buttons and forms.${dataStartsNote([f], range)}`.trim()
       : `It is checked every 10 minutes; nobody opened it.${dataStartsNote([f], range)}`,
     link: "See the pages",
     href: projectHref(f.id, "traffic", range, "pages"),

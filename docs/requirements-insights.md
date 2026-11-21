@@ -279,9 +279,29 @@ and add `?ref=portfolio` to links to the other projects. Not part of this build;
 
 ## 12a. Decisions (agreed 21 Nov, during plan review)
 
-Q5: rollups, plus a `total` kind per project per day (visitors can't be summed across pages). 12m = rollups for
-completed days + raw rows for today. Q1: one constant `DASHBOARD_TZ` in `src/lib/time.ts` (Asia/Karachi until Abdul
-says otherwise), used for buckets, rollup days, the visitor hash day and the daily caps. Q2–Q4: pending, nothing built.
+**Q1 Timezone: the viewer's own.** Everything is stored and rolled up in UTC (rollup days, daily caps). Pages bucket at
+query time `AT TIME ZONE <tz>`. The tz comes from `?tz=` (that request only, not stored), then the `pulse_tz` cookie,
+else `DASHBOARD_TZ` (`UTC`); invalid names fall back. On the first visit a tiny client snippet sets the cookie from the
+browser (`Intl`) and refreshes once. The header says "Times in <tz> · Change": a plain GET form to `/api/tz`, which
+validates, sets or clears the cookie and redirects back. 12m groups UTC-day rollups into months; a few hours of drift
+at month edges is accepted. **Q2 alerts, Q3 PageSpeed lab check, Q4 story dismiss: out of this build.**
+**Q5:** rollups, plus a `total` kind per project per day, and a `month` kind (distinct visitors of a UTC month, written
+by the cron once the month is complete). 12m = rollups for completed days + raw rows for today (UTC day).
+
+**Visitors: a stable hash (replaces the day-in-hash of A6).** `visitor = HMAC(VISITOR_SECRET, project|ip|ua)`, 16
+chars, no day. Hashes live only in raw events (60 days); rollups hold counts. Range visitors = distinct over raw rows;
+12m = "Visitors (added up by month)". **Returning** = a visitor in the range with an earlier visit (B2) in the data
+kept, inside the range or up to 60 days before it; shown as "N returning" on Overview and in the summary story from
+5 visitors. Guide: "One browser on one device. Counted once in the chosen range, however many pages or days. A new
+network or browser counts as new." Changing the secret makes everyone new.
+
+**A–H, I–L (build questions):** short pages send scroll 25/50/75/100 together · `time_on_page` is sent on every hide,
+pagehide or client navigation with the visible time since the last send (≥ 1 s, at most 5 per page view, always kept);
+queries sum it · `?ref=` cleaning: other characters → "-", trimmed, ≤ 40 · extra bot names and "no User-Agent = bot" ·
+live feed: page views, tagged events, outside links, downloads · cross-site labels match a project id or name,
+case-insensitive · events cap 3,000 per project per day · the blue tag names the range ("LAST 7 DAYS") · 44 px hit
+areas with negative margins so the slider stays ~90 px · stories use LCP, INP, CLS, TTFB (not FCP) · the API story
+needs ≥ 20 calls.
 
 1. **Events** = tagged / `track()` events only. Automatic events (A2) appear only under "Tracked automatically" and
    never count in stat cards, cards or event rules.

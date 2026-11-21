@@ -1,9 +1,11 @@
 import { createHmac } from "node:crypto";
 
-// A daily visitor: the same person (address + browser) counts once per day per project. The hash is keyed and the day
-// is part of it, so it can't be read back, can't be linked across days, and raw IP and user agent are never stored.
-export function visitorHash(secret: string, day: string, project: string, ip: string, userAgent: string): string {
-  return createHmac("sha256", secret).update(`${day}|${project}|${ip}|${userAgent}`).digest("base64url").slice(0, 16);
+// A visitor: one browser on one device (address + user agent), per project. The hash is keyed, so it can't be read
+// back or guessed without the secret; raw IP and user agent are never stored. It stays the same across days, so Pulse
+// counts a person once per range and can tell a returning browser, never who it is. Hashes live only in raw events
+// (deleted after 60 days); rollups hold counts. Changing the secret makes everyone a new visitor.
+export function visitorHash(secret: string, project: string, ip: string, userAgent: string): string {
+  return createHmac("sha256", secret).update(`${project}|${ip}|${userAgent}`).digest("base64url").slice(0, 16);
 }
 
 export function visitorSecret(): string {

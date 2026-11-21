@@ -1,11 +1,22 @@
 import Link from "next/link";
 import { UptimeStrip } from "@/components/charts";
 import { Card, Empty, Hint, LoadFailed } from "@/components/insight";
-import { formatCount, formatPercent, formatTime } from "@/lib/format";
+import { formatCount, formatPercent } from "@/lib/format";
 import type { Project } from "@/lib/projects";
-import type { Range } from "@/lib/range";
+import { dayLabel, resolveRange, type Range } from "@/lib/range";
+import { localClock, localDay } from "@/lib/time";
 import { toSlots, uptimeBars } from "@/lib/slots";
 import { getApiRoutes, getChecks } from "@/server/insights";
+
+// Every hour of the 7-day range, in the viewer's timezone
+function hourBuckets(range: Range): { start: Date; label: string }[] {
+  const out: { start: Date; label: string }[] = [];
+  for (let t = range.start.getTime(); t <= range.end.getTime(); t += 3_600_000) {
+    const start = new Date(t);
+    out.push({ start, label: `${dayLabel(localDay(start, range.tz))} ${localClock(start, range.tz)}` });
+  }
+  return out;
+}
 
 export async function UptimeTab({ project, range }: { project: Project; range: Range }) {
   const checks = await getChecks(range, project.id).catch(() => null);
@@ -13,7 +24,7 @@ export async function UptimeTab({ project, range }: { project: Project; range: R
   const failures = checks.filter((c) => !c.ok);
   const up = checks.length ? checks.filter((c) => c.ok).length / checks.length : null;
   const unit = range.key === "24h" ? "check" : range.key === "7d" ? "hour" : "day";
-  const bars = unit === "check" ? null : uptimeBars(checks, unit);
+  const bars = unit === "check" ? null : uptimeBars(checks, unit === "hour" ? hourBuckets(range) : resolveRange("30d", range.end, range.tz).buckets);
   const kept = range.key === "12m" ? "Checks are kept 30 days, so this shows the last 30. " : "";
 
   return (
@@ -48,7 +59,7 @@ export async function UptimeTab({ project, range }: { project: Project; range: R
             ))}
           </svg>
         ) : (
-          <UptimeStrip slots={toSlots(checks)} />
+          <UptimeStrip slots={toSlots(checks, range.end.getTime(), (d) => localClock(d, range.tz))} />
         )}
       </Card>
 
@@ -62,7 +73,9 @@ export async function UptimeTab({ project, range }: { project: Project; range: R
               .reverse()
               .map((c) => (
                 <li key={c.at.getTime()} className="grid grid-cols-[9.5rem_minmax(0,1fr)] gap-3">
-                  <span className="font-mono text-xs text-muted">{formatTime(c.at)}</span>
+                  <span className="font-mono text-xs text-muted">
+                    {dayLabel(localDay(c.at, range.tz))} {localClock(c.at, range.tz)}
+                  </span>
                   <span className="truncate">{c.error ?? `HTTP ${c.status}`}</span>
                 </li>
               ))}

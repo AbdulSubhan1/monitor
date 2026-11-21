@@ -1,10 +1,11 @@
-import { Card, Empty, Hint, LoadFailed, ShareBar, TextLink } from "@/components/insight";
+import { Card, Empty, LoadFailed, ShareBar, TextLink } from "@/components/insight";
 import { formatDuration } from "@/components/tabs/overview";
 import type { ProjectFacts } from "@/lib/facts";
 import { formatCount } from "@/lib/format";
 import { AUTO_EVENTS, isAutoEvent, type AutoEvent } from "@/lib/ingest";
 import { readableName } from "@/lib/names";
 import { dayLabel, type Range } from "@/lib/range";
+import { localClock, localDay } from "@/lib/time";
 import { getEventGroups, getFeed } from "@/server/insights";
 
 const AUTO_HELP: Record<AutoEvent, string> = {
@@ -15,10 +16,9 @@ const AUTO_HELP: Record<AutoEvent, string> = {
   time_on_page: "Only while the tab is in front",
 };
 
-function feedTime(at: Date, prev: Date | null): string {
-  const time = at.toISOString().slice(11, 16);
-  const day = at.toISOString().slice(0, 10);
-  return !prev || prev.toISOString().slice(0, 10) !== day ? `${dayLabel(day)} ${time}` : time;
+function feedTime(at: Date, prev: Date | null, tz: string): string {
+  const day = localDay(at, tz);
+  return !prev || localDay(prev, tz) !== day ? `${dayLabel(day)} ${localClock(at, tz)}` : localClock(at, tz);
 }
 
 export async function EventsTab({ f, range }: { f: ProjectFacts; range: Range }) {
@@ -96,7 +96,7 @@ export async function EventsTab({ f, range }: { f: ProjectFacts; range: Range })
               const from = row.type === "pageview" && (row.source || row.referrer);
               return (
                 <li key={`${row.at.getTime()}-${i}`} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
-                  <span className="font-mono text-xs text-muted tabular-nums">{feedTime(row.at, i ? feed[i - 1].at : null)}</span>
+                  <span className="font-mono text-xs text-muted tabular-nums">{feedTime(row.at, i ? feed[i - 1].at : null, range.tz)}</span>
                   <span className="min-w-0 truncate">
                     {what}
                     {row.label && <span className="text-muted"> · {row.label}</span>}
@@ -108,7 +108,6 @@ export async function EventsTab({ f, range }: { f: ProjectFacts; range: Range })
             })}
           </ol>
         )}
-        <Hint className="mt-3">Times are UTC.</Hint>
       </Card>
 
       <Card id="auto" title="Tracked automatically" aside="Every site, no code" hint="The Pulse script records these on every project by itself.">

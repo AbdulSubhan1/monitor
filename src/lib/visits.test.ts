@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageVisitMs, buildVisits, commonPaths, entriesAndExits, stepsOf, type VisitRow } from "@/lib/visits";
+import { averageVisitMs, buildVisits, commonPaths, entriesAndExits, returningVisitors, stepsOf, type VisitRow } from "@/lib/visits";
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 21, 10, 0) + min * 60_000);
 const page = (visitor: string, min: number, key: string): VisitRow => ({ visitor, at: at(min), kind: "page", key });
@@ -75,5 +75,27 @@ describe("paths", () => {
     expect(exits.get("/")).toBe(1);
     expect(averageVisitMs(visits)).toBe(30_000);
     expect(averageVisitMs([])).toBeNull();
+  });
+});
+
+describe("returningVisitors", () => {
+  it("counts visitors in the range with an earlier visit, inside the range or before it", () => {
+    const visits = buildVisits([
+      page("a", -3000, "/"), // a: a visit long before the range...
+      page("a", 0, "/"), // ...and one in it: returning
+      page("b", 0, "/"),
+      page("b", 120, "/"), // b: two visits inside the range: returning
+      page("c", 0, "/"),
+      page("c", 10, "/x"), // c: one visit (gap under 30 min): new
+      page("d", -3000, "/"), // d: only before the range: not counted at all
+    ]);
+    expect(returningVisitors(visits, at(-10))).toBe(2);
+  });
+
+  it("counts a visit across midnight once", () => {
+    // 23:50 and 00:10: one visit, one visitor, not returning
+    const visits = buildVisits([page("a", 0, "/"), page("a", 20, "/x")]);
+    expect(visits).toHaveLength(1);
+    expect(returningVisitors(visits, at(-5))).toBe(0);
   });
 });

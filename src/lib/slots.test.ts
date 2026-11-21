@@ -27,16 +27,14 @@ describe("toSlots", () => {
 });
 
 describe("uptimeBars", () => {
-  it("groups checks per hour or day and leaves empty buckets null", () => {
+  it("puts checks in the bucket they fall in and leaves empty buckets null", () => {
     const now = Date.UTC(2026, 10, 21, 12, 30);
     const at = (h: number, ok = true) => ({ ok, at: new Date(now - h * 3_600_000), status: 200, error: null, ms: 100 });
-    const hours = uptimeBars([at(0), at(0, false), at(5)], "hour", now);
-    expect(hours).toHaveLength(168);
-    expect(hours[167]).toMatchObject({ ok: 1, total: 2 });
-    expect(hours[166]).toBeNull();
-    const days = uptimeBars([at(0), at(30, false)], "day", now);
-    expect(days).toHaveLength(30);
-    expect(days[29]).toMatchObject({ ok: 1, total: 1 });
-    expect(days[28]).toMatchObject({ ok: 0, total: 1 });
+    // Three day buckets starting at Karachi midnight (19:00 UTC)
+    const buckets = [0, 1, 2].map((i) => ({ start: new Date(Date.UTC(2026, 10, 18 + i, 19)), label: `${19 + i} Nov` }));
+    const bars = uptimeBars([at(0), at(0, false), at(30, false), at(200)], buckets);
+    expect(bars[2]).toMatchObject({ ok: 1, total: 2 });
+    expect(bars[1]).toMatchObject({ ok: 0, total: 1, label: "20 Nov · 0 of 1 checks good" });
+    expect(bars[0]).toBeNull();
   });
 });
