@@ -15,6 +15,12 @@
   --warn-soft: #fbf0dc;
   --bar: #2f5d8a;
   --bar-soft: #dfe8f1;
+  /* Text on light tints and small coloured labels: dark enough for 4.5:1 */
+  --down-ink: #9e2a1f;
+  --warn-ink: #7a4f10;
+  --bar-ink: #1b3b5a;
+  --up-ink: #17643f;
+  --muted-ink: #3b4248;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +38,11 @@
     --warn-soft: #36291a;
     --bar: #6c9fd3;
     --bar-soft: #1f2a36;
+    --down-ink: #ef6a5c;
+    --warn-ink: #e0a64a;
+    --bar-ink: #8fb6df;
+    --up-ink: #3fbf86;
+    --muted-ink: #c3c9ce;
   }
 }
 
@@ -49,6 +60,11 @@
   --color-warn-soft: var(--warn-soft);
   --color-bar: var(--bar);
   --color-bar-soft: var(--bar-soft);
+  --color-down-ink: var(--down-ink);
+  --color-warn-ink: var(--warn-ink);
+  --color-bar-ink: var(--bar-ink);
+  --color-up-ink: var(--up-ink);
+  --color-muted-ink: var(--muted-ink);
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
@@ -56,4 +72,33 @@
 body {
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Story slider: a new story slides in from the right; the live dot blinks. Both stop for reduced motion. */
+@keyframes pulse-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.story-in {
+  animation: pulse-slide-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.live-dot {
+  animation: pulse-blink 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-in,
+  .live-dot {
+    animation: none;
+  }
 }

@@ -2,233 +2,129 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { DayBars, UptimeStrip } from "@/components/charts";
-import { Stat, StatusPill } from "@/components/status";
-import { MetricCell, VitalsTiles } from "@/components/vitals";
-import { formatCount, formatPercent, timeAgo } from "@/lib/format";
+import { toSlides } from "@/components/insight";
+import { hrefWith, RangePicker } from "@/components/range-picker";
+import { StorySlider } from "@/components/story-slider";
+import { TimezoneControl, viewerTz } from "@/components/timezone";
+import { EventsTab } from "@/components/tabs/events";
+import { OverviewTab } from "@/components/tabs/overview";
+import { parseDevice, PerformanceTab } from "@/components/tabs/performance";
+import { parseSort, TrafficTab } from "@/components/tabs/traffic";
+import { ApiTab, UptimeTab } from "@/components/tabs/uptime-api";
+import { formatPercent } from "@/lib/format";
 import { findProject } from "@/lib/projects";
-import { toSlots } from "@/lib/slots";
-import { getDeploy } from "@/server/deploys";
-import {
-  getApiRoutes,
-  getChecks24h,
-  getDailyViews,
-  getSummaries,
-  getTop,
-  getVitals,
-  getVitalsByPage,
-  lastSevenDays,
-} from "@/server/queries";
+import { parseRange, RANGE_PHRASE, resolveRange } from "@/lib/range";
+import { buildStories, storiesFor, type Tab } from "@/lib/stories";
+import { getDeploys } from "@/server/deploys";
+import { getFacts, regressionsFor } from "@/server/insights";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[id]">): Promise<Metadata> {
   const { id } = await params;
   return { title: findProject(id)?.name ?? "Not found" };
 }
 
-type TopRow = { label: string; detail?: string | null; count: number };
+const TABS: [Tab, string][] = [
+  ["overview", "Overview"],
+  ["traffic", "Traffic"],
+  ["events", "Events"],
+  ["performance", "Performance"],
+  ["uptime", "Uptime"],
+  ["api", "API calls"],
+];
 
-function TopList({ title, rows, empty }: { title: string; rows: TopRow[]; empty: string }) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  return (
-    <section className="rounded-xl border border-line bg-card p-4 md:p-5">
-      <h2 className="mb-3 text-sm font-semibold">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted">{empty}</p>
-      ) : (
-        <ol className="space-y-1.5">
-          {rows.map((r) => (
-            <li key={`${r.label}·${r.detail ?? ""}`} className="relative flex justify-between gap-3 rounded px-2 py-1 text-sm">
-              {/* Background bar sized by share of the top row */}
-              <svg className="absolute inset-0 -z-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 1" aria-hidden>
-                <rect width={(r.count / max) * 100} height={1} className="fill-bar-soft" />
-              </svg>
-              <span className="relative min-w-0 truncate text-xs leading-5">
-                <span className="font-mono">{r.label}</span>
-                {r.detail && <span className="text-muted"> · {r.detail}</span>}
-              </span>
-              <span className="relative font-mono text-xs tabular-nums leading-5">{formatCount(r.count)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
+function parseTab(raw: string | string[] | undefined): Tab {
+  return TABS.find(([t]) => t === raw)?.[0] ?? "overview";
 }
 
-export default async function ProjectPage({ params }: PageProps<"/projects/[id]">) {
+const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+
+export default async function ProjectPage({ params, searchParams }: PageProps<"/projects/[id]">) {
   const { id } = await params;
   const project = findProject(id);
   if (!project) notFound();
   await connection();
+  const sp = await searchParams;
+  const { tz, hasCookie } = await viewerTz(sp.tz);
+  const range = resolveRange(parseRange(sp.range), new Date(), tz);
+  const tab = parseTab(sp.tab);
+  const keep = { range: range.key, tab, sort: one(sp.sort), device: one(sp.device) };
+  const base = `/projects/${id}`;
 
-  const [summaries, checks, daily, top, vitals, pageVitals, routes, deploy] = await Promise.all([
-    getSummaries(),
-    getChecks24h(project.id),
-    getDailyViews(project.id),
-    getTop(project.id),
-    getVitals(),
-    getVitalsByPage(project.id),
-    getApiRoutes(project.id),
-    getDeploy(project),
-  ]);
-  const v = vitals.get(project.id);
-  const s = summaries.get(project.id);
-  const bars = lastSevenDays().map((day) => ({ label: day, value: daily.find((d) => d.day === day)?.views ?? 0 }));
-  const failures = checks.filter((c) => !c.ok);
+  const deploys = await getDeploys(project);
+  const deploy = deploys[0] ?? null;
+  const all = await getFacts(range, [id], regressionsFor(range, async () => deploys)).catch(() => null);
+  const f = all?.get(id);
+  const stories = f ? storiesFor(buildStories([f], { range, scope: { kind: "project", id } }), tab) : [];
+  const state = !f || f.status.downNow === null ? "unknown" : f.status.downNow ? "down" : "up";
+  const tabLabel = TABS.find(([t]) => t === tab)![1];
 
   return (
-    <>
-      <Link href="/" className="text-sm text-muted hover:text-ink">
+    <div className="flex flex-col gap-5">
+      <Link href={range.key === "7d" ? "/" : `/?range=${range.key}`} className="text-sm text-muted hover:text-ink">
         ← All projects
       </Link>
-      <div className="mt-3 mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold md:text-3xl">{project.name}</h1>
-        <StatusPill state={s?.lastCheck ? (s.lastCheck.ok ? "up" : "down") : "unknown"} />
-        <a href={project.url} className="text-sm text-muted underline hover:text-ink">
-          {project.url.replace("https://", "")}
-        </a>
-      </div>
-
-      <dl className="mb-6 grid grid-cols-2 gap-4 rounded-xl border border-line bg-card p-4 md:grid-cols-6 md:p-5">
-        <Stat label="Uptime 24 h" value={formatPercent(s?.uptime24h ?? null)} />
-        <Stat label="Avg response" value={s?.avgMs24h ? `${s.avgMs24h} ms` : "–"} />
-        <Stat label="Views 24 h" value={formatCount(s?.views24h ?? 0)} />
-        <Stat label="Views 7 days" value={formatCount(s?.views7d ?? 0)} />
-        <Stat label="Events 24 h" value={formatCount(s?.events24h ?? 0)} />
-        <Stat label="Errors 24 h" value={formatCount(s?.errors24h ?? 0)} tone={s?.errors24h ? "down" : undefined} />
-      </dl>
-
-      <section className="mb-6 rounded-xl border border-line bg-card p-4 md:p-5">
-        <div className="mb-2 flex flex-wrap justify-between gap-2 text-sm">
-          <h2 className="font-semibold">Uptime, last 24 hours</h2>
-          <span className="text-muted">
-            {checks.length} checks of <span className="font-mono">{project.checkPath}</span>
-            {failures.length > 0 && <span className="text-down"> · {failures.length} failed</span>}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold md:text-3xl">{project.name}</h1>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${state === "up" ? "bg-up-soft text-up-ink" : state === "down" ? "bg-down-soft text-down-ink" : "bg-line text-muted-ink"}`}
+          >
+            {state === "up" ? "Up" : state === "down" ? "Down" : "No checks yet"}
+            {f && f.status.uptime !== null && ` · ${formatPercent(f.status.uptime)} ${range.key === "12m" ? "last 30 days" : RANGE_PHRASE[range.key].replace("in the ", "")}`}
           </span>
+          <a href={project.url} className="text-sm text-muted underline hover:text-ink">
+            {project.url.replace("https://", "")}
+          </a>
         </div>
-        <UptimeStrip slots={toSlots(checks)} />
-        <div className="mt-1 flex justify-between text-xs text-muted">
-          <span>24 h ago</span>
-          <span>now</span>
-        </div>
-      </section>
-
-      <section className="mb-6 rounded-xl border border-line bg-card p-4 md:p-5">
-        <h2 className="mb-2 text-sm font-semibold">Page views per day</h2>
-        <DayBars bars={bars} height={60} />
-        <div className="mt-1 flex justify-between font-mono text-xs text-muted">
-          <span>{bars[0].label}</span>
-          <span>{bars[bars.length - 1].label}</span>
-        </div>
-      </section>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <TopList title="Top pages, 7 days" rows={top.pages} empty="No page views yet." />
-        <TopList title="Clicks and events, 7 days" rows={top.named} empty="No events yet." />
-        <TopList title="Referring sites, 7 days" rows={top.referrers} empty="No referrers yet." />
+        <RangePicker current={range.key} path={base} params={keep} />
       </div>
+      <p className="-mt-2 text-sm text-muted">
+        {range.words} · every number below uses this range · <TimezoneControl tz={tz} hasCookie={hasCookie} back={hrefWith(base, keep, {})} />
+      </p>
 
-      <section className="mt-6 rounded-xl border border-line bg-card p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap justify-between gap-2 text-sm">
-          <h2 className="font-semibold">Performance, 7 days</h2>
-          <span className="text-muted">
-            75th percentile of {formatCount(v?.samples ?? 0)} real page loads (Core Web Vitals)
-          </span>
-        </div>
-        {v ? (
-          <>
-            <VitalsTiles values={v} />
-            {pageVitals.length > 0 && (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-muted">
-                    <tr>
-                      <th className="py-1 pr-3 font-normal">Page</th>
-                      <th className="py-1 pr-3 font-normal">Loads</th>
-                      <th className="py-1 pr-3 font-normal">LCP</th>
-                      <th className="py-1 pr-3 font-normal">INP</th>
-                      <th className="py-1 font-normal">CLS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {pageVitals.map((p) => (
-                      <tr key={p.path}>
-                        <td className="max-w-48 truncate py-1.5 pr-3 font-mono">{p.path}</td>
-                        <td className="py-1.5 pr-3 font-mono tabular-nums">{formatCount(p.samples)}</td>
-                        <td className="py-1.5 pr-3">
-                          <MetricCell metric="lcp" value={p.lcp} />
-                        </td>
-                        <td className="py-1.5 pr-3">
-                          <MetricCell metric="inp" value={p.inp} />
-                        </td>
-                        <td className="py-1.5">
-                          <MetricCell metric="cls" value={p.cls} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-muted">No page loads measured yet.</p>
-        )}
-      </section>
-
-      <section className="mt-6 rounded-xl border border-line bg-card p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap justify-between gap-2 text-sm">
-          <h2 className="font-semibold">API calls, 7 days</h2>
-          <Link href={`/logs/api?project=${project.id}`} className="text-muted underline hover:text-ink">
-            Every call
+      {/* Wraps on small screens instead of scrolling sideways */}
+      <nav aria-label="Project sections" className="flex flex-wrap gap-x-7 border-b border-line">
+        {TABS.map(([t, text]) => (
+          <Link
+            key={t}
+            href={hrefWith(base, { range: range.key }, { tab: t })}
+            aria-current={t === tab ? "page" : undefined}
+            className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-0.5 text-sm ${t === tab ? "border-ink font-semibold" : "border-transparent text-muted hover:text-ink"}`}
+          >
+            {text}
           </Link>
-        </div>
-        {routes.length === 0 ? (
-          <p className="text-sm text-muted">No API calls reported yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="text-muted">
-                <tr>
-                  <th className="py-1 pr-3 font-normal">Route</th>
-                  <th className="py-1 pr-3 font-normal">Calls</th>
-                  <th className="py-1 pr-3 font-normal">Failed</th>
-                  <th className="py-1 pr-3 font-normal">4xx</th>
-                  <th className="py-1 pr-3 font-normal">Avg</th>
-                  <th className="py-1 font-normal">p95</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {routes.map((r) => (
-                  <tr key={`${r.method} ${r.host} ${r.route}`}>
-                    <td className="py-1.5 pr-3 font-mono">
-                      <span className="text-muted">{r.method} </span>
-                      {r.route}
-                      {r.host && <span className="block text-[11px] text-muted">{r.host}</span>}
-                    </td>
-                    <td className="py-1.5 pr-3 font-mono tabular-nums">{formatCount(r.calls)}</td>
-                    <td className={`py-1.5 pr-3 font-mono tabular-nums ${r.failed ? "text-down" : ""}`}>{formatCount(r.failed)}</td>
-                    <td className={`py-1.5 pr-3 font-mono tabular-nums ${r.clientErrors ? "text-warn" : ""}`}>
-                      {formatCount(r.clientErrors)}
-                    </td>
-                    <td className="py-1.5 pr-3 font-mono tabular-nums">{r.avg} ms</td>
-                    <td className="py-1.5 font-mono tabular-nums">{r.p95} ms</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+        ))}
+      </nav>
 
-      <p className="mt-6 text-sm text-muted">
-        {deploy
-          ? `Last production deploy ${timeAgo(deploy.at)}${deploy.commit ? ` (${deploy.commit}${deploy.message ? `: ${deploy.message}` : ""})` : ""}.`
-          : "Last deploy unknown."}{" "}
+      <StorySlider
+        key={`${range.key}-${tab}`}
+        stories={toSlides(stories, range)}
+        label={`${project.name}, ${tabLabel}: one story at a time`}
+        failed={!f}
+        retryHref={hrefWith(base, keep, {})}
+      />
+
+      {!f ? (
+        <p className="rounded-xl border border-line bg-card p-5 text-sm text-muted">Couldn&apos;t load this project&apos;s numbers. Reload the page to try again.</p>
+      ) : tab === "overview" ? (
+        <OverviewTab f={f} range={range} deploy={deploy} />
+      ) : tab === "traffic" ? (
+        <TrafficTab f={f} range={range} sort={parseSort(sp.sort)} params={keep} />
+      ) : tab === "events" ? (
+        <EventsTab f={f} range={range} />
+      ) : tab === "performance" ? (
+        <PerformanceTab id={id} range={range} device={parseDevice(sp.device)} params={keep} deploys={deploys.map((d) => ({ at: d.at, commit: d.commit }))} />
+      ) : tab === "uptime" ? (
+        <UptimeTab project={project} range={range} />
+      ) : (
+        <ApiTab project={project} range={range} />
+      )}
+
+      <p className="text-sm text-muted">
         <Link href={`/logs?project=${project.id}`} className="underline hover:text-ink">
           See this project&apos;s logs
         </Link>
       </p>
-    </>
+    </div>
   );
 }

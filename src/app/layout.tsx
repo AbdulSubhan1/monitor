@@ -16,13 +16,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${geist.variable} ${geistMono.variable} antialiased`}>
       <body className="min-h-dvh font-sans">
         <header className="border-b border-line">
-          <nav className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:px-6">
+          <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 md:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <span className="size-2.5 rounded-full bg-up" aria-hidden />
               Pulse
             </Link>
             <Link href="/" className="text-sm text-muted hover:text-ink">
               Overview
+            </Link>
+            <Link href="/guide" className="text-sm text-muted hover:text-ink">
+              How to read Pulse
             </Link>
             <Link href="/logs" className="text-sm text-muted hover:text-ink">
               Logs
