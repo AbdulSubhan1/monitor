@@ -90,13 +90,13 @@ const ALL_PROJECTS: Project[] = [
     deploys: { from: "vercel", projectId: "prj_woRdWsurSgByNbieR0cpZmXF7aWW" },
   },
   {
-    // Client shop (hair oil, cash on delivery). TODO when it is deployed: url, origins and the Vercel project id
+    // Client shop (hair oil, cash on delivery)
     id: "zaitulhusn",
     name: "Zaitul Husn",
-    url: "",
-    checkPath: "/",
-    origins: [],
-    deploys: { from: "vercel", projectId: "" },
+    url: "https://zaitul-husn.vercel.app",
+    checkPath: "/api/health",
+    origins: ["https://zaitul-husn.vercel.app"],
+    deploys: { from: "vercel", projectId: "prj_FWtnqzQSAWfC70TT0RoXtB6TBYY0" },
   },
 ];
 
